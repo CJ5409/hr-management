@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, TextField, MenuItem, Select, Box } from '@mui/material';
 import axios from 'axios';
 import Dashboard from './Dashboard';
+import React from 'react';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -10,10 +11,15 @@ function App() {
   const [userData, setUserData] = useState<any>(null);
 
   const handleLogin = async () => {
-    const { data } = await axios.post('http://localhost:5000/login', { email, role });
-    const employeeResponse = await axios.get(`http://localhost:5000/employee/${data.email}`);
-    setUserData({ ...data, ...employeeResponse.data });
-    setLoggedIn(true);
+    try {
+      const { data } = await axios.post('http://localhost:5001/login', { email, role });
+      const employeeResponse = await axios.get(`http://localhost:5001/employee/${data.email}`);
+      setUserData({ ...data, ...employeeResponse.data });
+      setLoggedIn(true);
+    } catch (error) {
+      console.error('Login failed:', error);
+      alert('Login failed. Check server and try again.');
+    }
   };
 
   if (loggedIn) return <Dashboard userData={userData} />;

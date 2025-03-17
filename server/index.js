@@ -16,7 +16,7 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error(err));
 
-app.listen(5000, () => console.log('Server running on port 5000'));
+app.listen(5001, () => console.log('Server running on port 5001'));
 
 
 app.post('/login', async (req, res) => {
@@ -51,4 +51,9 @@ app.post('/clock-out', async (req, res) => {
     } else {
       res.status(404).send('No active clock-in');
     }
+  });
+
+app.get('/clock-records/:email', async (req, res) => {
+    const records = await ClockRecord.find({ userEmail: req.params.email });
+    res.json(records);
   });
