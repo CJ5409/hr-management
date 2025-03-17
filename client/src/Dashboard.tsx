@@ -7,11 +7,11 @@ import React from 'react';
 function Dashboard({ userData }: { userData: any }) {
     const [clockRecords, setClockRecords] = useState<any[]>([]);
   useEffect(() => {
-    axios.get(`http://localhost:5000/clock-records/${userData.email}`).then(res => setClockRecords(res.data));
+    axios.get(`http://localhost:5001/clock-records/${userData.email}`).then(res => setClockRecords(res.data));
   }, [userData.email]);
     
-    const handleClockIn = async () => { await axios.post('http://localhost:5000/clock-in', { email: userData.email }); };
-    const handleClockOut = async () => { await axios.post('http://localhost:5000/clock-out', { email: userData.email }); };
+    const handleClockIn = async () => { await axios.post('http://localhost:5001/clock-in', { email: userData.email }); };
+    const handleClockOut = async () => { await axios.post('http://localhost:5001/clock-out', { email: userData.email }); };
     return (
         <Box sx={{ p: 4 }}>
           {/* Existing content */}
