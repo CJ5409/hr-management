@@ -3,6 +3,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 const User = require('./models/User');
+const ClockRecord = require('./models/ClockRecord');
 
 
 require('dotenv').config();
@@ -11,7 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error(err));
 
@@ -26,4 +27,28 @@ app.post('/login', async (req, res) => {
       await user.save();
     }
     res.json({ token: 'fake-token', role: user.role, email: user.email });
+  });
+
+app.get('/employee/:email', async (req, res) => {
+    const user = await User.findOne({ email: req.params.email });
+    res.json(user || { error: 'Employee not found' });
+  });
+
+app.post('/clock-in', async (req, res) => {
+    const { email } = req.body;
+    const record = new ClockRecord({ userEmail: email, clockIn: new Date() });
+    await record.save();
+    res.status(201).send('Clocked in');
+  });
+
+app.post('/clock-out', async (req, res) => {
+    const { email } = req.body;
+    const record = await ClockRecord.findOne({ userEmail: email, clockOut: null });
+    if (record) {
+      record.clockOut = new Date();
+      await record.save();
+      res.send('Clocked out');
+    } else {
+      res.status(404).send('No active clock-in');
+    }
   });
