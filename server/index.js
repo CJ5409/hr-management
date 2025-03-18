@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const User = require('./models/User');
 const ClockRecord = require('./models/ClockRecord');
 
+const { exec } = require('child_process');
+
 
 require('dotenv').config();
 
@@ -27,6 +29,17 @@ app.post('/submit-cv', async (req, res) => {
   res.status(201).send('CV submitted');
 });
 
+
+app.post('/submit-cv', async (req, res) => {
+    const { email, file } = req.body;
+    const submission = new CVSubmission({ userEmail: email, fileUrl: 'mock-url.pdf' });
+    await submission.save();
+    exec(`python3 ../ai/parse_cv.py mock-cv.pdf`, (err, stdout) => {
+      if (!err) submission.aiReport = stdout;
+      submission.save();
+    });
+    res.status(201).send('CV submitted');
+  });
 
 app.post('/login', async (req, res) => {
     const { email, role } = req.body;
