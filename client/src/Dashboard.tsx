@@ -60,8 +60,16 @@ useEffect(() => {
 
     return (
         <Box sx={{ p: 4 }}>
-          {/* Existing content */}
-          {userData.role === 'employee' && (
+          <Typography variant="h4">Welcome, {userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}</Typography>
+          <Grid container spacing={2} mt={2}>
+            <Grid item>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6">Department</Typography>
+                  <Typography variant="h4">{userData.department || 'Unassigned'}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
             <Grid item>
               <Card>
                 <CardContent>
@@ -71,11 +79,8 @@ useEffect(() => {
                   ))}
                 </CardContent>
               </Card>
-
-            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
-            <Button variant="contained" onClick={handleCVSubmit}>Submit CV</Button>
             </Grid>
-          )}
+          </Grid>
         </Box>
       );
     }
