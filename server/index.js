@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 const User = require('./models/User');
 const ClockRecord = require('./models/ClockRecord');
+const Performance = require('./models/Performance');
 
 const { exec } = require('child_process');
 
@@ -51,6 +52,17 @@ app.post('/login', async (req, res) => {
     res.json({ token: 'fake-token', role: user.role, email: user.email });
   });
 
+
+app.get('/performance/:email', async (req, res) => {
+    const records = await ClockRecord.find({ userEmail: req.params.email });
+    const hoursWorked = records.reduce((acc, r) => acc + (r.clockOut ? (new Date(r.clockOut) - new Date(r.clockIn)) / 3600000 : 0), 0);
+    const onTimeRate = records.length ? (records.filter(r => new Date(r.clockIn).getHours() < 9).length / records.length) * 100 : 0;
+    let perf = await Performance.findOne({ userEmail: req.params.email });
+    if (!perf) perf = new Performance({ userEmail: req.params.email, onTimeRate, hoursWorked });
+    else { perf.onTimeRate = onTimeRate; perf.hoursWorked = hoursWorked; }
+    await perf.save();
+    res.json(perf);
+  });
 
 app.get('/cv-submissions/:email', async (req, res) => {
     const submissions = await CVSubmission.find({ userEmail: req.params.email });

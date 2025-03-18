@@ -36,6 +36,23 @@ const handleCVSubmit = async () => {
     </Grid>
   )}
 
+  const [performance, setPerformance] = useState<any>(null);
+useEffect(() => {
+  axios.get(`http://localhost:5001/performance/${userData.email}`).then(res => setPerformance(res.data));
+}, [userData.email]);
+// ... in return ...
+{(userData.role === 'hr' || userData.role === 'manager') && performance && (
+  <Grid item>
+    <Card>
+      <CardContent>
+        <Typography variant="h6">Performance</Typography>
+        <Typography>On-Time Rate: {performance.onTimeRate}%</Typography>
+        <Typography>Hours Worked: {performance.hoursWorked}</Typography>
+      </CardContent>
+    </Card>
+  </Grid>
+)}
+
 };
 
 
