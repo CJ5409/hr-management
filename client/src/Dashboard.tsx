@@ -19,7 +19,26 @@ const handleCVSubmit = async () => {
     await axios.post('http://localhost:5001/submit-cv', { email: userData.email, file: file.name });
     setFile(null);
   }
+
+  const [cvSubmissions, setCVSubmissions] = useState<any[]>([]);
+  useEffect(() => {
+    axios.get(`http://localhost:5001/cv-submissions/${userData.email}`).then(res => setCVSubmissions(res.data));
+  }, [userData.email]);
+  // ... in return ...
+  {userData.role === 'hr' && cvSubmissions.length > 0 && (
+    <Grid item>
+      <Card>
+        <CardContent>
+          <Typography variant="h6">Latest CV Report</Typography>
+          <Typography>{cvSubmissions[0].aiReport || 'Processing...'}</Typography>
+        </CardContent>
+      </Card>
+    </Grid>
+  )}
+
 };
+
+
 
 
     return (

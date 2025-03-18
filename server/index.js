@@ -51,6 +51,13 @@ app.post('/login', async (req, res) => {
     res.json({ token: 'fake-token', role: user.role, email: user.email });
   });
 
+
+app.get('/cv-submissions/:email', async (req, res) => {
+    const submissions = await CVSubmission.find({ userEmail: req.params.email });
+    res.json(submissions);
+  });
+
+
 app.get('/employee/:email', async (req, res) => {
     const user = await User.findOne({ email: req.params.email });
     res.json(user || { error: 'Employee not found' });
