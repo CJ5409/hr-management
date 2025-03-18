@@ -19,6 +19,15 @@ mongoose.connect(process.env.MONGO_URI)
 app.listen(5001, () => console.log('Server running on port 5001'));
 
 
+const CVSubmission = require('./models/CVSubmission');
+app.post('/submit-cv', async (req, res) => {
+  const { email, file } = req.body;
+  const submission = new CVSubmission({ userEmail: email, fileUrl: 'mock-url.pdf' });
+  await submission.save();
+  res.status(201).send('CV submitted');
+});
+
+
 app.post('/login', async (req, res) => {
     const { email, role } = req.body;
     let user = await User.findOne({ email });
