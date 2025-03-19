@@ -22,6 +22,16 @@ function Dashboard({ userData }: { userData: any }) {
       }
     };
 
+    const [cvSubmissions, setCVSubmissions] = useState<any[]>([]);
+    useEffect(() => {
+    axios.get(`http://localhost:5001/cv-submissions/${userData.email}`).then(res => setCVSubmissions(res.data));
+    }, [userData.email]);
+
+    const [performance, setPerformance] = useState<any>(null);
+    useEffect(() => {
+    axios.get(`http://localhost:5001/performance/${userData.email}`).then(res => setPerformance(res.data));
+    }, [userData.email]);
+
 
     return (
       <Box sx={{ p: 4 }}>
@@ -49,6 +59,47 @@ function Dashboard({ userData }: { userData: any }) {
           </Card>
         </Grid>
       )}
+
+        {userData.role === 'employee' && (
+        <Grid item>
+            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
+            <Button variant="contained" onClick={handleCVSubmit}>Submit CV</Button>
+        </Grid>
+        )}
+
+        {userData.role === 'hr' && cvSubmissions.length > 0 && (
+        <Grid item>
+            <Card>
+            <CardContent>
+                <Typography variant="h6">Latest CV Report</Typography>
+                <Typography>{cvSubmissions[0].aiReport || 'Processing...'}</Typography>
+            </CardContent>
+            </Card>
+        </Grid>
+        )}
+
+        {(userData.role === 'hr' || userData.role === 'manager') && performance && (
+        <Grid item>
+            <Card>
+            <CardContent>
+                <Typography variant="h6">Performance</Typography>
+                <Typography>On-Time Rate: {performance.onTimeRate}%</Typography>
+                <Typography>Hours Worked: {performance.hoursWorked}</Typography>
+            </CardContent>
+            </Card>
+        </Grid>
+        )}
+
+
+
+
+
+
+
+
+
+
+
       </Box>
     );
   }
