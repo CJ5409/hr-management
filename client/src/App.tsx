@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Button, TextField, MenuItem, Select, Box } from '@mui/material';
 import axios from 'axios';
 import Dashboard from './Dashboard';
-import React from 'react';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -22,11 +21,12 @@ function App() {
     }
   };
 
-  if (loggedIn) return <Dashboard userData={userData} />;
-  return (
+  return loggedIn ? (
+    <Dashboard userData={userData} />
+  ) : (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 300, margin: 'auto', mt: 10 }}>
       <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <Select value={role} onChange={(e) => setRole(e.target.value)}>
+      <Select value={role} onChange={(e) => setRole(e.target.value as string)}>
         <MenuItem value="employee">Employee</MenuItem>
         <MenuItem value="hr">HR</MenuItem>
         <MenuItem value="manager">Manager</MenuItem>
