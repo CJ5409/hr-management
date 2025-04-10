@@ -1,39 +1,57 @@
 import { useState } from 'react';
-import { Button, TextField, MenuItem, Select, Box } from '@mui/material';
-import axios from 'axios';
+import { TextField, Button, Typography, Box } from '@mui/material';
+import axios, { AxiosError } from 'axios'; // Import AxiosError
 import Dashboard from './Dashboard';
 
 function App() {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('employee');
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('');
+  const [userData, setUserData] = useState(null);
 
   const handleLogin = async () => {
     try {
-      const { data } = await axios.post('http://localhost:5001/login', { email, role });
-      const employeeResponse = await axios.get(`http://localhost:5001/employee/${data.email}`);
-      setUserData({ ...data, ...employeeResponse.data });
-      setLoggedIn(true);
+      const res = await axios.post('http://localhost:5001/login', { email, password, role });
+      localStorage.setItem('token', res.data.token);
+      setUserData(res.data);
     } catch (error) {
-      console.error('Login failed:', error);
-      alert('Login failed. Check server and try again.');
+      const axiosError = error as AxiosError<{ error: string }>; // Type the error
+      console.error('Login failed:', axiosError.response?.data || axiosError.message);
+      alert(axiosError.response?.data?.error || 'Login failed');
     }
   };
 
-  return loggedIn ? (
-    <Dashboard userData={userData} />
-  ) : (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 300, margin: 'auto', mt: 10 }}>
-      <TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <Select value={role} onChange={(e) => setRole(e.target.value as string)}>
-        <MenuItem value="employee">Employee</MenuItem>
-        <MenuItem value="hr">HR</MenuItem>
-        <MenuItem value="manager">Manager</MenuItem>
-      </Select>
-      <Button variant="contained" onClick={handleLogin}>Login</Button>
-    </Box>
-  );
+  if (!userData) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography variant="h4">HR Management Login</Typography>
+        <TextField
+          label="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          sx={{ mt: 2 }}
+        />
+        <TextField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          sx={{ mt: 2, ml: 2 }}
+        />
+        <TextField
+          label="Role (employee/hr/manager)"
+          value={role}
+          onChange={e => setRole(e.target.value)}
+          sx={{ mt: 2, ml: 2 }}
+        />
+        <Button variant="contained" onClick={handleLogin} sx={{ mt: 2, ml: 2 }}>
+          Login
+        </Button>
+      </Box>
+    );
+  }
+
+  return <Dashboard userData={userData} />;
 }
 
 export default App;

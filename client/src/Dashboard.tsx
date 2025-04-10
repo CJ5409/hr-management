@@ -1,6 +1,6 @@
-import { useState, useEffect, SetStateAction } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, Typography, Grid, Box, Button, TextField } from '@mui/material';
-import axios from 'axios'; // Removed unused imports: isCancel, AxiosError
+import axios, { AxiosError } from 'axios'; // Import AxiosError
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale } from 'chart.js';
 import GaugeChart from 'react-gauge-chart';
@@ -38,117 +38,120 @@ interface UserData {
 }
 
 function Dashboard({ userData }: { userData: UserData }) {
-  // State for clock records, CV submissions, performance, and file uploads
   const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
   const [cvSubmissions, setCVSubmissions] = useState<CVSubmission[]>([]);
   const [performance, setPerformance] = useState<Performance | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [employeeCount, setEmployeeCount] = useState<number>(0);
 
-  // WebSocket setup for real-time updates
   const socket: Socket = io('http://localhost:5001');
 
-  // Fetch initial data
+  const token = localStorage.getItem('token');
+  const axiosWithAuth = axios.create({
+    baseURL: 'http://localhost:5001',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
   useEffect(() => {
     // Fetch clock records
-    axios.get(`http://localhost:5001/clock-records/${userData.email}`)
+    axiosWithAuth.get(`/clock-records/${userData.email}`)
       .then(res => setClockRecords(res.data))
-      .catch(err => console.error('Error fetching clock records:', err));
+      .catch((err: AxiosError) => console.error('Error fetching clock records:', err.message));
 
     // Fetch CV submissions (for HR)
     if (userData.role === 'hr') {
-      axios.get(`http://localhost:5001/cv-submissions/${userData.email}`)
+      axiosWithAuth.get(`/cv-submissions/${userData.email}`)
         .then(res => setCVSubmissions(res.data))
-        .catch(err => console.error('Error fetching CV submissions:', err));
+        .catch((err: AxiosError) => console.error('Error fetching CV submissions:', err.message));
     }
 
     // Fetch performance data (for HR/Manager)
     if (userData.role === 'hr' || userData.role === 'manager') {
-      axios.get(`http://localhost:5001/performance/${userData.email}`)
+      axiosWithAuth.get(`/performance/${userData.email}`)
         .then(res => setPerformance(res.data))
-        .catch(err => console.error('Error fetching performance:', err));
+        .catch((err: AxiosError) => console.error('Error fetching performance:', err.message));
     }
 
     // Fetch employee count (for HR/Manager)
     if (userData.role === 'hr' || userData.role === 'manager') {
-      axios.get('http://localhost:5001/employee-count')
+      axiosWithAuth.get('/employee-count')
         .then(res => setEmployeeCount(res.data.count))
-        .catch(err => console.error('Error fetching employee count:', err));
+        .catch((err: AxiosError) => console.error('Error fetching employee count:', err.message));
     }
 
-    // WebSocket listener for real-time updates
-    socket.on('dataUpdate', (data: { email: string; clockRecords: SetStateAction<ClockRecord[]>; }) => {
+    socket.on('dataUpdate', data => {
       if (data.email === userData.email) {
         setClockRecords(data.clockRecords);
       }
     });
 
-    // Cleanup WebSocket listener on unmount
     return () => {
       socket.off('dataUpdate');
     };
   }, [userData.email]);
 
-  // Clock-in/out handlers
   const handleClockIn = async () => {
     try {
-      await axios.post('http://localhost:5001/clock-in', { email: userData.email });
-      axios.get(`http://localhost:5001/clock-records/${userData.email}`)
+      await axiosWithAuth.post('/clock-in', {});
+      axiosWithAuth.get(`/clock-records/${userData.email}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      console.error('Clock-in failed:', error);
+      const axiosError = error as AxiosError;
+      console.error('Clock-in failed:', axiosError.message);
     }
   };
 
   const handleClockOut = async () => {
     try {
-      await axios.post('http://localhost:5001/clock-out', { email: userData.email });
-      axios.get(`http://localhost:5001/clock-records/${userData.email}`)
+      await axiosWithAuth.post('/clock-out', {});
+      axiosWithAuth.get(`/clock-records/${userData.email}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      console.error('Clock-out failed:', error);
+      const axiosError = error as AxiosError;
+      console.error('Clock-out failed:', axiosError.message);
     }
   };
 
-  // CV submission handler
   const handleCVSubmit = async () => {
     if (file) {
       try {
-        await axios.post('http://localhost:5001/submit-cv', { email: userData.email, file: file.name });
+        await axiosWithAuth.post('/submit-cv', { file: file.name });
         setFile(null);
         if (userData.role === 'hr') {
-          axios.get(`http://localhost:5001/cv-submissions/${userData.email}`)
+          axiosWithAuth.get(`/cv-submissions/${userData.email}`)
             .then(res => setCVSubmissions(res.data));
         }
       } catch (error) {
-        console.error('CV submission failed:', error);
+        const axiosError = error as AxiosError;
+        console.error('CV submission failed:', axiosError.message);
       }
     }
   };
 
-  // Manager: Update clock record
   const handleUpdateClock = async (id: string, clockIn: string) => {
     try {
-      await axios.put(`http://localhost:5001/clock-record/${id}`, { clockIn });
-      axios.get(`http://localhost:5001/clock-records/${userData.email}`)
+      await axiosWithAuth.put(`/clock-record/${id}`, { clockIn });
+      axiosWithAuth.get(`/clock-records/${userData.email}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      console.error('Clock record update failed:', error);
+      const axiosError = error as AxiosError;
+      console.error('Clock record update failed:', axiosError.message);
     }
   };
 
-  // Manager: Update department
   const handleUpdateDepartment = async (email: string, dept: string) => {
     try {
-      await axios.put(`http://localhost:5001/employee/${email}/department`, { department: dept });
-      axios.get(`http://localhost:5001/employee/${userData.email}`)
+      await axiosWithAuth.put(`/employee/${email}/department`, { department: dept });
+      axiosWithAuth.get(`/employee/${userData.email}`)
         .then(res => userData.department = res.data.department);
     } catch (error) {
-      console.error('Department update failed:', error);
+      const axiosError = error as AxiosError;
+      console.error('Department update failed:', axiosError.message);
     }
   };
 
-  // Line chart data for hours worked (Fixed TypeScript error with .getTime())
   const chartData = {
     labels: clockRecords.map(r => new Date(r.clockIn).toLocaleDateString()),
     datasets: [
@@ -170,7 +173,6 @@ function Dashboard({ userData }: { userData: UserData }) {
         Welcome, {userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}
       </Typography>
       <Grid container spacing={2} mt={2}>
-        {/* Department Card */}
         <Grid item>
           <Card>
             <CardContent>
@@ -180,7 +182,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Card>
         </Grid>
 
-        {/* Clock-In/Out Buttons (Employee) */}
         {userData.role === 'employee' && (
           <Grid item>
             <Button variant="contained" onClick={handleClockIn}>Clock In</Button>
@@ -188,7 +189,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* Clock History (Employee) */}
         {userData.role === 'employee' && (
           <Grid item>
             <Card>
@@ -209,7 +209,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* CV Submission (Employee) */}
         {userData.role === 'employee' && (
           <Grid item>
             <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
@@ -217,7 +216,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* CV Report (HR) */}
         {userData.role === 'hr' && cvSubmissions.length > 0 && (
           <Grid item>
             <Card>
@@ -229,7 +227,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* Performance Stats (HR/Manager) */}
         {(userData.role === 'hr' || userData.role === 'manager') && performance && (
           <Grid item>
             <Card>
@@ -242,21 +239,18 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* Line Chart for Hours Worked (HR/Manager) */}
         {(userData.role === 'hr' || userData.role === 'manager') && clockRecords.length > 0 && (
           <Grid item>
             <Line data={chartData} />
           </Grid>
         )}
 
-        {/* On-Time Rate Gauge (HR/Manager) */}
         {(userData.role === 'hr' || userData.role === 'manager') && performance && (
           <Grid item>
             <GaugeChart id="on-time-gauge" nrOfLevels={20} percent={performance.onTimeRate / 100} />
           </Grid>
         )}
 
-        {/* Manage Clock Records (Manager) */}
         {userData.role === 'manager' && clockRecords.length > 0 && (
           <Grid item>
             <Card>
@@ -276,7 +270,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* Update Department (Manager) */}
         {userData.role === 'manager' && (
           <Grid item>
             <TextField label="Employee Email" id="dept-email" />
@@ -293,7 +286,6 @@ function Dashboard({ userData }: { userData: UserData }) {
           </Grid>
         )}
 
-        {/* Dynamic Employee Count Card (HR/Manager) */}
         {(userData.role === 'hr' || userData.role === 'manager') && (
           <Grid item>
             <Card>

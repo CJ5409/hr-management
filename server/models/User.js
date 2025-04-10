@@ -1,11 +1,15 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-const userSchema = new Schema({
+const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  role: { type: String, enum: ['employee', 'hr', 'manager'], required: true },
-  department: String,
-  departmentHistory: [{ department: String, startDate: Date, endDate: Date }]
+  password: { type: String, required: true }, // Add password field
+  role: { type: String, required: true },
+  department: { type: String, default: 'Unassigned' },
+  departmentHistory: [{
+    department: String,
+    startDate: Date,
+    endDate: Date
+  }]
 });
 
 module.exports = mongoose.model('User', userSchema);
