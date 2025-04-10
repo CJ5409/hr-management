@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TextField, Button, Typography, Box } from '@mui/material';
+import { TextField, Button, Typography, Box, Alert } from '@mui/material';
 import axios, { AxiosError } from 'axios';
 import Dashboard from './Dashboard';
 
@@ -10,22 +10,30 @@ interface UserData {
   department: string;
 }
 
+interface ErrorResponse {
+  errors: { msg: string }[];
+}
+
 function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [userData, setUserData] = useState<UserData | null>(null);
+  const [errorMessages, setErrorMessages] = useState<string[]>([]);
 
   const handleLogin = async () => {
+    setErrorMessages([]); // Clear previous errors
     try {
       const res = await axios.post('http://localhost:5001/login', { email, password, role });
       localStorage.setItem('token', res.data.token);
       setUserData(res.data);
     } catch (error) {
-      const axiosError = error as AxiosError<{ error: string }>;
-      console.error('Login failed:', axiosError.response?.data || axiosError.message);
-      alert(axiosError.response?.data?.error || 'Login failed');
-      setUserData(null);
+      const axiosError = error as AxiosError<ErrorResponse>;
+      if (axiosError.response?.data?.errors) {
+        setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+      } else {
+        setErrorMessages(['Login failed']);
+      }
     }
   };
 
@@ -44,6 +52,15 @@ function App() {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="h4">HR Management Login</Typography>
+        {errorMessages.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            {errorMessages.map((msg, index) => (
+              <Alert key={index} severity="error" sx={{ mb: 1 }}>
+                {msg}
+              </Alert>
+            ))}
+          </Box>
+        )}
         <TextField
           label="Email"
           value={email}

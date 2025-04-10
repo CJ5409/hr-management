@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, Typography, Grid, Box, Button, TextField } from '@mui/material';
+import { Card, CardContent, Typography, Grid, Box, Button, TextField, Alert, MenuItem, Select, InputLabel, FormControl } from '@mui/material';
 import axios, { AxiosError } from 'axios';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale } from 'chart.js';
@@ -35,10 +35,19 @@ interface UserData {
   departmentHistory?: { department: string; startDate: string; endDate?: string }[];
 }
 
+interface Employee {
+  email: string;
+  department: string;
+}
+
 interface DashboardProps {
   userData: UserData;
   onLogout: () => void;
-  updateDepartment: (newDepartment: string) => void; // Add updateDepartment prop
+  updateDepartment: (newDepartment: string) => void;
+}
+
+interface ErrorResponse {
+  errors: { msg: string }[];
 }
 
 function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
@@ -47,6 +56,9 @@ function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
   const [performance, setPerformance] = useState<Performance | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [employeeCount, setEmployeeCount] = useState<number>(0);
+  const [errorMessages, setErrorMessages] = useState<string[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]); // List of employees in manager's department
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(''); // Selected employee email
 
   const socket: Socket = io('http://localhost:5001');
 
@@ -59,65 +71,91 @@ function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
   });
 
   useEffect(() => {
-    axiosWithAuth.get(`/clock-records/${userData.email}`)
+    // Fetch manager's own clock records or employee's records based on role
+    const emailToFetch = userData.role === 'manager' && selectedEmployee ? selectedEmployee : userData.email;
+    axiosWithAuth.get(`/clock-records/${emailToFetch}`)
       .then(res => setClockRecords(res.data))
       .catch((err: AxiosError) => console.error('Error fetching clock records:', err.message));
-  
+
     if (userData.role === 'hr') {
       axiosWithAuth.get(`/cv-submissions/${userData.email}`)
         .then(res => {
-          console.log('Fetched CV submissions for HR:', res.data); // Debug log
+          console.log('Fetched CV submissions for HR:', res.data);
           setCVSubmissions(res.data);
         })
         .catch((err: AxiosError) => console.error('Error fetching CV submissions:', err.message));
     }
-  
+
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get(`/performance/${userData.email}`)
         .then(res => setPerformance(res.data))
         .catch((err: AxiosError) => console.error('Error fetching performance:', err.message));
     }
-  
+
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get('/employee-count')
         .then(res => setEmployeeCount(res.data.count))
         .catch((err: AxiosError) => console.error('Error fetching employee count:', err.message));
     }
-  
+
+    // Fetch employees in the manager's department
+    if (userData.role === 'manager') {
+      axiosWithAuth.get('/employees-in-department')
+        .then(res => {
+          setEmployees(res.data);
+          if (res.data.length > 0) {
+            setSelectedEmployee(res.data[0].email); // Default to first employee
+          }
+        })
+        .catch((err: AxiosError) => console.error('Error fetching employees:', err.message));
+    }
+
     socket.on('dataUpdate', data => {
-      if (data.email === userData.email) {
+      const emailToMatch = userData.role === 'manager' && selectedEmployee ? selectedEmployee : userData.email;
+      if (data.email === emailToMatch) {
         setClockRecords(data.clockRecords);
       }
     });
-  
+
     return () => {
       socket.off('dataUpdate');
     };
-  }, [userData.email]);
+  }, [userData.email, userData.role, selectedEmployee]);
 
   const handleClockIn = async () => {
+    setErrorMessages([]);
     try {
       await axiosWithAuth.post('/clock-in', {});
       axiosWithAuth.get(`/clock-records/${userData.email}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error('Clock-in failed:', axiosError.message);
+      const axiosError = error as AxiosError<ErrorResponse>;
+      if (axiosError.response?.data?.errors) {
+        setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+      } else {
+        setErrorMessages(['Clock-in failed']);
+      }
     }
   };
 
   const handleClockOut = async () => {
+    setErrorMessages([]);
     try {
       await axiosWithAuth.post('/clock-out', {});
       axiosWithAuth.get(`/clock-records/${userData.email}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error('Clock-out failed:', axiosError.message);
+      const axiosError = error as AxiosError<ErrorResponse>;
+      if (axiosError.response?.data?.errors) {
+        setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+      } else {
+        setErrorMessages(['Clock-out failed']);
+      }
     }
   };
 
   const handleCVSubmit = async () => {
+    setErrorMessages([]);
     if (file) {
       try {
         const formData = new FormData();
@@ -135,32 +173,48 @@ function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
             .then(res => setCVSubmissions(res.data));
         }
       } catch (error) {
-        const axiosError = error as AxiosError<{ error: string }>;
-        console.error('CV submission failed:', axiosError.response?.data?.error || axiosError.message);
-        alert(axiosError.response?.data?.error || 'CV submission failed');
+        const axiosError = error as AxiosError<ErrorResponse>;
+        if (axiosError.response?.data?.errors) {
+          setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+        } else {
+          setErrorMessages(['CV submission failed']);
+        }
       }
+    } else {
+      setErrorMessages(['Please select a file to upload']);
     }
   };
 
   const handleUpdateClock = async (id: string, clockIn: string) => {
+    setErrorMessages([]);
     try {
       await axiosWithAuth.put(`/clock-record/${id}`, { clockIn });
-      axiosWithAuth.get(`/clock-records/${userData.email}`)
+      const emailToFetch = userData.role === 'manager' && selectedEmployee ? selectedEmployee : userData.email;
+      axiosWithAuth.get(`/clock-records/${emailToFetch}`)
         .then(res => setClockRecords(res.data));
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error('Clock record update failed:', axiosError.message);
+      const axiosError = error as AxiosError<ErrorResponse>;
+      if (axiosError.response?.data?.errors) {
+        setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+      } else {
+        setErrorMessages(['Clock record update failed']);
+      }
     }
   };
 
   const handleUpdateDepartment = async (email: string, dept: string) => {
+    setErrorMessages([]);
     try {
       await axiosWithAuth.put(`/employee/${email}/department`, { department: dept });
       const res = await axiosWithAuth.get(`/employee/${userData.email}`);
       updateDepartment(res.data.department);
     } catch (error) {
-      const axiosError = error as AxiosError;
-      console.error('Department update failed:', axiosError.message);
+      const axiosError = error as AxiosError<ErrorResponse>;
+      if (axiosError.response?.data?.errors) {
+        setErrorMessages(axiosError.response.data.errors.map(err => err.msg));
+      } else {
+        setErrorMessages(['Department update failed']);
+      }
     }
   };
 
@@ -189,6 +243,15 @@ function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
           Logout
         </Button>
       </Box>
+      {errorMessages.length > 0 && (
+        <Box sx={{ mt: 2 }}>
+          {errorMessages.map((msg, index) => (
+            <Alert key={index} severity="error" sx={{ mb: 1 }}>
+              {msg}
+            </Alert>
+          ))}
+        </Box>
+      )}
       <Grid container spacing={2} mt={2}>
         <Grid item>
           <Card>
@@ -268,11 +331,29 @@ function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
           </Grid>
         )}
 
-        {userData.role === 'manager' && clockRecords.length > 0 && (
+        {userData.role === 'manager' && (
+          <Grid item>
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Select Employee</InputLabel>
+              <Select
+                value={selectedEmployee}
+                onChange={e => setSelectedEmployee(e.target.value as string)}
+              >
+                {employees.map(emp => (
+                  <MenuItem key={emp.email} value={emp.email}>
+                    {emp.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+        )}
+
+        {userData.role === 'manager' && clockRecords.length > 0 && selectedEmployee && (
           <Grid item>
             <Card>
               <CardContent>
-                <Typography variant="h6">Manage Clock Records</Typography>
+                <Typography variant="h6">Manage Clock Records for {selectedEmployee}</Typography>
                 {clockRecords.map(r => (
                   <Box key={r._id}>
                     <Typography>{r.clockIn} - {r.clockOut || 'Active'}</Typography>
