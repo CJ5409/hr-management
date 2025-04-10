@@ -1,11 +1,14 @@
-import spacy
-from PyPDF2 import PdfReader
+import sys
 
-nlp = spacy.load('en_core_web_sm')
+def parse_cv(file_path):
+    # Mock CV parsing logic (replace with actual PDF parsing if needed)
+    return f"Parsed CV from {file_path}: Name: John Doe, Experience: 5 years"
 
-def parse_cv(pdf_path):
-    reader = PdfReader(pdf_path)
-    text = ''.join(page.extract_text() for page in reader.pages)
-    doc = nlp(text)
-    skills = [ent.text for ent in doc.ents if ent.label_ in ['SKILL', 'ORG']]
-    return f"Skills: {', '.join(skills)}"
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python parse_cv.py <file_path>")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+    result = parse_cv(file_path)
+    print(result)

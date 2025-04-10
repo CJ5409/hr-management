@@ -6,6 +6,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
+const path = require('path');
 require('dotenv').config();
 
 const auth = require('./middleware/auth');
@@ -13,6 +15,28 @@ const auth = require('./middleware/auth');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/'); // Save files to uploads/ directory
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname)); // Unique filename
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true); // Accept only PDF files
+    } else {
+      cb(new Error('Only PDF files are allowed'), false);
+    }
+  }
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: 'http://localhost:3000' } });
@@ -88,22 +112,44 @@ app.get('/clock-records/:email', auth, async (req, res) => {
   res.json(records);
 });
 
-app.post('/submit-cv', auth, async (req, res) => {
+const util = require('util');
+const execPromise = util.promisify(exec); // Promisify exec
+
+app.post('/submit-cv', auth, upload.single('file'), async (req, res) => {
   const { email } = req.user;
-  const { file } = req.body;
-  const submission = new CVSubmission({ userEmail: email, fileUrl: 'mock-url.pdf' });
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded or invalid file type' });
+  }
+
+  const filePath = req.file.path;
+  const submission = new CVSubmission({ userEmail: email, fileUrl: filePath });
   await submission.save();
-  exec(`python3 ../ai/parse_cv.py mock-cv.pdf`, (err, stdout) => {
-    if (!err) {
+
+  try {
+    const { stdout, stderr } = await execPromise(`python3 ../ai/parse_cv.py "${filePath}"`);
+    if (stderr) {
+      console.error('Error running parse_cv.py:', stderr);
+      submission.aiReport = 'Error processing CV';
+    } else {
       submission.aiReport = stdout;
-      submission.save();
     }
-  });
-  res.status(201).send('CV submitted');
+  } catch (err) {
+    console.error('Error running parse_cv.py:', err.message);
+    submission.aiReport = 'Error processing CV';
+  }
+
+  await submission.save();
+  res.status(201).json({ message: 'CV submitted', fileUrl: filePath });
 });
 
 app.get('/cv-submissions/:email', auth, async (req, res) => {
-  const submissions = await CVSubmission.find({ userEmail: req.params.email });
+  const { email, role } = req.user;
+  let submissions;
+  if (role === 'hr') {
+    submissions = await CVSubmission.find(); // HR can see all CV submissions
+  } else {
+    submissions = await CVSubmission.find({ userEmail: req.params.email });
+  }
   res.json(submissions);
 });
 

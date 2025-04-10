@@ -6,10 +6,8 @@ import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale
 import GaugeChart from 'react-gauge-chart';
 import { io, Socket } from 'socket.io-client';
 
-// Register Chart.js components
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale);
 
-// Define interfaces for TypeScript
 interface ClockRecord {
   _id?: string;
   clockIn: string;
@@ -39,10 +37,11 @@ interface UserData {
 
 interface DashboardProps {
   userData: UserData;
-  onLogout: () => void; // Add onLogout prop
+  onLogout: () => void;
+  updateDepartment: (newDepartment: string) => void; // Add updateDepartment prop
 }
 
-function Dashboard({ userData, onLogout }: DashboardProps) {
+function Dashboard({ userData, onLogout, updateDepartment }: DashboardProps) {
   const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
   const [cvSubmissions, setCVSubmissions] = useState<CVSubmission[]>([]);
   const [performance, setPerformance] = useState<Performance | null>(null);
@@ -63,31 +62,34 @@ function Dashboard({ userData, onLogout }: DashboardProps) {
     axiosWithAuth.get(`/clock-records/${userData.email}`)
       .then(res => setClockRecords(res.data))
       .catch((err: AxiosError) => console.error('Error fetching clock records:', err.message));
-
+  
     if (userData.role === 'hr') {
       axiosWithAuth.get(`/cv-submissions/${userData.email}`)
-        .then(res => setCVSubmissions(res.data))
+        .then(res => {
+          console.log('Fetched CV submissions for HR:', res.data); // Debug log
+          setCVSubmissions(res.data);
+        })
         .catch((err: AxiosError) => console.error('Error fetching CV submissions:', err.message));
     }
-
+  
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get(`/performance/${userData.email}`)
         .then(res => setPerformance(res.data))
         .catch((err: AxiosError) => console.error('Error fetching performance:', err.message));
     }
-
+  
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get('/employee-count')
         .then(res => setEmployeeCount(res.data.count))
         .catch((err: AxiosError) => console.error('Error fetching employee count:', err.message));
     }
-
+  
     socket.on('dataUpdate', data => {
       if (data.email === userData.email) {
         setClockRecords(data.clockRecords);
       }
     });
-
+  
     return () => {
       socket.off('dataUpdate');
     };
@@ -118,15 +120,24 @@ function Dashboard({ userData, onLogout }: DashboardProps) {
   const handleCVSubmit = async () => {
     if (file) {
       try {
-        await axiosWithAuth.post('/submit-cv', { file: file.name });
+        const formData = new FormData();
+        formData.append('file', file);
+
+        await axiosWithAuth.post('/submit-cv', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
         setFile(null);
         if (userData.role === 'hr') {
           axiosWithAuth.get(`/cv-submissions/${userData.email}`)
             .then(res => setCVSubmissions(res.data));
         }
       } catch (error) {
-        const axiosError = error as AxiosError;
-        console.error('CV submission failed:', axiosError.message);
+        const axiosError = error as AxiosError<{ error: string }>;
+        console.error('CV submission failed:', axiosError.response?.data?.error || axiosError.message);
+        alert(axiosError.response?.data?.error || 'CV submission failed');
       }
     }
   };
@@ -145,8 +156,8 @@ function Dashboard({ userData, onLogout }: DashboardProps) {
   const handleUpdateDepartment = async (email: string, dept: string) => {
     try {
       await axiosWithAuth.put(`/employee/${email}/department`, { department: dept });
-      axiosWithAuth.get(`/employee/${userData.email}`)
-        .then(res => userData.department = res.data.department);
+      const res = await axiosWithAuth.get(`/employee/${userData.email}`);
+      updateDepartment(res.data.department);
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Department update failed:', axiosError.message);
@@ -217,7 +228,7 @@ function Dashboard({ userData, onLogout }: DashboardProps) {
 
         {userData.role === 'employee' && (
           <Grid item>
-            <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} />
+            <input type="file" accept="application/pdf" onChange={e => setFile(e.target.files?.[0] || null)} />
             <Button variant="contained" onClick={handleCVSubmit}>Submit CV</Button>
           </Grid>
         )}

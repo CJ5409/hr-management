@@ -7,7 +7,7 @@ interface UserData {
   token: string;
   role: string;
   email: string;
-  department: string; // Add department
+  department: string;
 }
 
 function App() {
@@ -32,6 +32,12 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUserData(null);
+  };
+
+  const updateDepartment = (newDepartment: string) => {
+    if (userData) {
+      setUserData({ ...userData, department: newDepartment });
+    }
   };
 
   if (!userData) {
@@ -64,7 +70,7 @@ function App() {
     );
   }
 
-  return <Dashboard userData={userData} onLogout={handleLogout} />;
+  return <Dashboard userData={userData} onLogout={handleLogout} updateDepartment={updateDepartment} />;
 }
 
 export default App;
