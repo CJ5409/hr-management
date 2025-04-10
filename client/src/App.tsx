@@ -1,13 +1,20 @@
 import { useState } from 'react';
 import { TextField, Button, Typography, Box } from '@mui/material';
-import axios, { AxiosError } from 'axios'; // Import AxiosError
+import axios, { AxiosError } from 'axios';
 import Dashboard from './Dashboard';
+
+interface UserData {
+  token: string;
+  role: string;
+  email: string;
+  department: string; // Add department
+}
 
 function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
-  const [userData, setUserData] = useState(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
 
   const handleLogin = async () => {
     try {
@@ -15,10 +22,16 @@ function App() {
       localStorage.setItem('token', res.data.token);
       setUserData(res.data);
     } catch (error) {
-      const axiosError = error as AxiosError<{ error: string }>; // Type the error
+      const axiosError = error as AxiosError<{ error: string }>;
       console.error('Login failed:', axiosError.response?.data || axiosError.message);
       alert(axiosError.response?.data?.error || 'Login failed');
+      setUserData(null);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUserData(null);
   };
 
   if (!userData) {
@@ -51,7 +64,7 @@ function App() {
     );
   }
 
-  return <Dashboard userData={userData} />;
+  return <Dashboard userData={userData} onLogout={handleLogout} />;
 }
 
 export default App;

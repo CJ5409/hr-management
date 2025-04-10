@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, Typography, Grid, Box, Button, TextField } from '@mui/material';
-import axios, { AxiosError } from 'axios'; // Import AxiosError
+import axios, { AxiosError } from 'axios';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale } from 'chart.js';
 import GaugeChart from 'react-gauge-chart';
@@ -37,7 +37,12 @@ interface UserData {
   departmentHistory?: { department: string; startDate: string; endDate?: string }[];
 }
 
-function Dashboard({ userData }: { userData: UserData }) {
+interface DashboardProps {
+  userData: UserData;
+  onLogout: () => void; // Add onLogout prop
+}
+
+function Dashboard({ userData, onLogout }: DashboardProps) {
   const [clockRecords, setClockRecords] = useState<ClockRecord[]>([]);
   const [cvSubmissions, setCVSubmissions] = useState<CVSubmission[]>([]);
   const [performance, setPerformance] = useState<Performance | null>(null);
@@ -55,26 +60,22 @@ function Dashboard({ userData }: { userData: UserData }) {
   });
 
   useEffect(() => {
-    // Fetch clock records
     axiosWithAuth.get(`/clock-records/${userData.email}`)
       .then(res => setClockRecords(res.data))
       .catch((err: AxiosError) => console.error('Error fetching clock records:', err.message));
 
-    // Fetch CV submissions (for HR)
     if (userData.role === 'hr') {
       axiosWithAuth.get(`/cv-submissions/${userData.email}`)
         .then(res => setCVSubmissions(res.data))
         .catch((err: AxiosError) => console.error('Error fetching CV submissions:', err.message));
     }
 
-    // Fetch performance data (for HR/Manager)
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get(`/performance/${userData.email}`)
         .then(res => setPerformance(res.data))
         .catch((err: AxiosError) => console.error('Error fetching performance:', err.message));
     }
 
-    // Fetch employee count (for HR/Manager)
     if (userData.role === 'hr' || userData.role === 'manager') {
       axiosWithAuth.get('/employee-count')
         .then(res => setEmployeeCount(res.data.count))
@@ -169,9 +170,14 @@ function Dashboard({ userData }: { userData: UserData }) {
 
   return (
     <Box sx={{ p: 4 }}>
-      <Typography variant="h4">
-        Welcome, {userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h4">
+          Welcome, {userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}
+        </Typography>
+        <Button variant="contained" color="secondary" onClick={onLogout}>
+          Logout
+        </Button>
+      </Box>
       <Grid container spacing={2} mt={2}>
         <Grid item>
           <Card>
