@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-const cvSubmissionSchema = new Schema({
+const cvSubmissionSchema = new mongoose.Schema({
   userEmail: { type: String, required: true },
-  fileUrl: String,
-  aiReport: String,
+  fileUrl: { type: String, required: true },
+  extractedText: { type: String }, // Store extracted text
+  aiReport: { type: String },
   submittedAt: { type: Date, default: Date.now }
 });
 

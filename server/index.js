@@ -13,12 +13,69 @@ const path = require('path');
 const { check } = require('express-validator'); // Add express-validator
 require('dotenv').config();
 
+const fs = require('fs');
+const pdf = require('pdf-parse');
+
 const auth = require('./middleware/auth');
 const validate = require('./middleware/validate'); // Add validate middleware
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const LoginTrail = require('./models/LoginTrail');
+
+app.post(
+  '/login',
+  [
+    check('email')
+      .isEmail()
+      .withMessage('Please provide a valid email address'),
+    check('password')
+      .isLength({ min: 6 })
+      .withMessage('Password must be at least 6 characters long'),
+    check('role')
+      .isIn(['employee', 'hr', 'manager'])
+      .withMessage('Role must be one of: employee, hr, manager'),
+    validate
+  ],
+  async (req, res) => {
+    const { email, password, role } = req.body;
+    const ipAddress = req.ip; // Get client's IP address
+    try {
+      let user = await User.findOne({ email });
+      let success = false;
+
+      if (!user) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user = new User({ email, password: hashedPassword, role, department: 'Unassigned' });
+        await user.save();
+        success = true;
+      } else {
+        const isMatch = await bcrypt.compare(password, user.password);
+        console.log('Password match:', isMatch);
+        if (!isMatch) {
+          await new LoginTrail({ userEmail: email, role, success: false, ipAddress }).save();
+          return res.status(400).json({ errors: [{ msg: 'Invalid credentials' }] });
+        }
+        success = true;
+      }
+
+      const token = jwt.sign(
+        { email: user.email, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      await new LoginTrail({ userEmail: email, role, success: true, ipAddress }).save();
+      res.json({ token, role: user.role, email: user.email, department: user.department });
+    } catch (error) {
+      console.error('Login endpoint error:', error.message);
+      await new LoginTrail({ userEmail: email, role, success: false, ipAddress }).save();
+      res.status(500).json({ errors: [{ msg: 'Server error' }] });
+    }
+  }
+);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -53,6 +110,45 @@ const User = require('./models/User');
 const ClockRecord = require('./models/ClockRecord');
 const CVSubmission = require('./models/CVSubmission');
 const Performance = require('./models/Performance');
+
+
+app.post('/submit-cv', auth, upload.single('file'), async (req, res) => {
+  try {
+    const { email } = req.user;
+    if (!req.file) {
+      return res.status(400).json({ errors: [{ msg: 'No file uploaded or invalid file type' }] });
+    }
+
+    const filePath = req.file.path;
+    const submission = new CVSubmission({ userEmail: email, fileUrl: filePath });
+
+    // Extract text from PDF
+    const dataBuffer = fs.readFileSync(filePath);
+    const pdfData = await pdf(dataBuffer);
+    submission.extractedText = pdfData.text;
+
+    await submission.save();
+
+    try {
+      const { stdout, stderr } = await execPromise(`python3 ../ai/parse_cv.py "${filePath}"`);
+      if (stderr) {
+        console.error('Error running parse_cv.py:', stderr);
+        submission.aiReport = 'Error processing CV';
+      } else {
+        submission.aiReport = stdout;
+      }
+    } catch (err) {
+      console.error('Error running parse_cv.py:', err.message);
+      submission.aiReport = 'Error processing CV';
+    }
+
+    await submission.save();
+    res.status(201).json({ message: 'CV submitted successfully', fileUrl: filePath });
+  } catch (error) {
+    console.error('CV submission error:', error.message);
+    res.status(500).json({ errors: [{ msg: 'Server error' }] });
+  }
+});
 
 // /login: Validate email, password, and role
 app.post(
@@ -167,37 +263,6 @@ app.get('/clock-records/:email', auth, async (req, res) => {
     res.status(500).json({ errors: [{ msg: 'Server error' }] });
   }
 });
-app.post('/submit-cv', auth, upload.single('file'), async (req, res) => {
-  try {
-    const { email } = req.user;
-    if (!req.file) {
-      return res.status(400).json({ errors: [{ msg: 'No file uploaded or invalid file type' }] });
-    }
-
-    const filePath = req.file.path;
-    const submission = new CVSubmission({ userEmail: email, fileUrl: filePath });
-    await submission.save();
-
-    try {
-      const { stdout, stderr } = await execPromise(`python3 ../ai/parse_cv.py "${filePath}"`);
-      if (stderr) {
-        console.error('Error running parse_cv.py:', stderr);
-        submission.aiReport = 'Error processing CV';
-      } else {
-        submission.aiReport = stdout;
-      }
-    } catch (err) {
-      console.error('Error running parse_cv.py:', err.message);
-      submission.aiReport = 'Error processing CV';
-    }
-
-    await submission.save();
-    res.status(201).json({ message: 'CV submitted successfully', fileUrl: filePath });
-  } catch (error) {
-    console.error('CV submission error:', error.message);
-    res.status(500).json({ errors: [{ msg: 'Server error' }] });
-  }
-});
 
 app.get('/cv-submissions/:email', auth, async (req, res) => {
   try {
@@ -303,6 +368,20 @@ app.put(
     }
   }
 );
+
+app.get('/login-trail', auth, async (req, res) => {
+  try {
+    const { role } = req.user;
+    if (role !== 'hr' && role !== 'manager') {
+      return res.status(403).json({ errors: [{ msg: 'Access denied: HR or Managers only' }] });
+    }
+    const trails = await LoginTrail.find().sort({ timestamp: -1 });
+    res.json(trails);
+  } catch (error) {
+    console.error('Error fetching login trails:', error.message);
+    res.status(500).json({ errors: [{ msg: 'Server error' }] });
+  }
+});
 
 app.get('/employee-count', auth, async (req, res) => {
   try {

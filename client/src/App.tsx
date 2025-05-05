@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TextField, Button, Typography, Box, Alert } from '@mui/material';
 import axios, { AxiosError } from 'axios';
 import Dashboard from './Dashboard';
+import Layout from './Layout';
 
 interface UserData {
   token: string;
@@ -21,7 +22,7 @@ function App() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (email: string, password: string, role: string) => {
     setErrorMessages([]); // Clear previous errors
     try {
       const res = await axios.post('http://localhost:5001/login', { email, password, role });
