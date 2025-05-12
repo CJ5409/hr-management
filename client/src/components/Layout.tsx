@@ -20,6 +20,9 @@ import {
   Badge,
   Divider,
   Paper,
+  Card,
+  CardContent,
+  Grid,
   ListSubheader,
 } from '@mui/material';
 import {
@@ -31,15 +34,24 @@ import {
   Search as SearchIcon,
   Notifications as NotificationsIcon,
   Timeline as TimelineIcon,
+  ShoppingCart as SalesIcon,
+  People as PeopleIcon,
+  LocalShipping as ShippingIcon,
+  AccountBalance as AccountingIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import axios from 'axios';
+import Chat from './Chat';
+import { Socket } from 'socket.io-client';
 
 interface LayoutProps {
-  userData: { email: string; role: string; department: string };
+  userData: { id: number; email: string; role: string; department: string; position: string };
   onLogout: () => void;
   onSearch: (query: string) => void;
   children: React.ReactNode;
+  socket: Socket;
+  messages: { sender: string; message: string; timestamp: string }[];
 }
 
 interface ThemeStyles {
@@ -61,7 +73,14 @@ interface Activity {
   timestamp: string;
 }
 
-const Layout = ({ userData, onLogout, onSearch, children }: LayoutProps) => {
+interface SalesOrder {
+  id: number;
+  item: string;
+  quantity: number;
+  timestamp: string;
+}
+
+const Layout = ({ userData, onLogout, onSearch, children, socket, messages }: LayoutProps) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [themeColor, setThemeColor] = useState<'blue' | 'purple' | 'green'>('blue');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -69,25 +88,54 @@ const Layout = ({ userData, onLogout, onSearch, children }: LayoutProps) => {
   const [language, setLanguage] = useState<'en' | 'es'>('en');
   const [searchQuery, setSearchQuery] = useState('');
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: 1, message: 'Pending CV approval', role: 'admin' },
-    { id: 2, message: 'Reminder: Clock in', role: 'employee' },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [activities, setActivities] = useState<Activity[]>([
     { id: 1, message: 'Employee1 clocked in', timestamp: '2025-05-12 09:00' },
     { id: 2, message: 'Admin approved CV', timestamp: '2025-05-12 10:00' },
   ]);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [itemName, setItemName] = useState('');
+  const [quantity, setQuantity] = useState<number | ''>('');
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Sample data for visualization (replace with real data from your backend)
-  const chartData = [
-    { name: 'Mon', clockIns: 30, clockOuts: 28 },
-    { name: 'Tue', clockIns: 35, clockOuts: 34 },
-    { name: 'Wed', clockIns: 40, clockOuts: 38 },
-    { name: 'Thu', clockIns: 25, clockOuts: 24 },
-    { name: 'Fri', clockIns: 45, clockOuts: 42 },
+  // Fetch notifications dynamically
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const response = await axios.get(`http://localhost:5000/api/users/notifications/${userData.role}`);
+        setNotifications(response.data);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      }
+    };
+
+    fetchNotifications();
+  }, [userData.role]);
+
+  // Sample data for visualizations (replace with real data from backend)
+  const departmentActivity = [
+    { name: 'Sales', value: 40 },
+    { name: 'HR', value: 30 },
+    { name: 'Shipping', value: 20 },
+    { name: 'Accounting', value: 10 },
   ];
+
+  const shippingStatus = [
+    { status: 'Pending', count: 15 },
+    { status: 'Shipped', count: 25 },
+    { status: 'Delivered', count: 10 },
+  ];
+
+  const commissionData = [
+    { month: 'Jan', commission: 500 },
+    { month: 'Feb', commission: 600 },
+    { month: 'Mar', commission: 450 },
+    { month: 'Apr', commission: 700 },
+    { month: 'May', commission: 550 },
+  ];
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
   useEffect(() => {
     const savedPrefs = localStorage.getItem(`prefs_${userData.email}`);
@@ -135,6 +183,29 @@ const Layout = ({ userData, onLogout, onSearch, children }: LayoutProps) => {
       role: userData.role,
     };
     setNotifications((prev) => [...prev, newNotification]);
+  };
+
+  const createSalesOrder = () => {
+    if (itemName && quantity) {
+      const newOrder: SalesOrder = {
+        id: Date.now(),
+        item: itemName,
+        quantity: Number(quantity),
+        timestamp: new Date().toLocaleString(),
+      };
+      setSalesOrders((prev) => [...prev, newOrder]);
+      setNotifications((prev) => [
+        ...prev,
+        { id: Date.now(), message: `New sales order: ${itemName}`, role: 'shipping' },
+        { id: Date.now() + 1, message: `Calculate commission for ${itemName}`, role: 'accounting' },
+      ]);
+      setActivities((prev) => [
+        ...prev,
+        { id: Date.now(), message: `${userData.email} created a sales order`, timestamp: new Date().toLocaleString() },
+      ]);
+      setItemName('');
+      setQuantity('');
+    }
   };
 
   const getThemeStyles = (color: 'blue' | 'purple' | 'green'): ThemeStyles => {
@@ -396,6 +467,7 @@ const Layout = ({ userData, onLogout, onSearch, children }: LayoutProps) => {
           >
             <MenuItem disabled sx={{ color: 'inherit' }}>{userData.email}</MenuItem>
             <MenuItem disabled sx={{ color: 'inherit' }}>Role: {userData.role}</MenuItem>
+            <MenuItem disabled sx={{ color: 'inherit' }}>Position: {userData.position}</MenuItem>
             <MenuItem
               onClick={() => {
                 onLogout();
@@ -445,34 +517,167 @@ const Layout = ({ userData, onLogout, onSearch, children }: LayoutProps) => {
           </Paper>
         )}
 
-        {/* Dashboard Visualization */}
+        {/* Salesman Features */}
+        {location.pathname === '/dashboard' && userData.role === 'salesman' && (
+          <>
+            {/* Create Sales Order */}
+            <Paper
+              sx={{
+                p: 3,
+                mb: 3,
+                backgroundColor: isDarkMode ? '#1e1e1e' : '#fff',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+              }}
+            >
+              <Typography variant="h6" gutterBottom>
+                Create Sales Order
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField
+                  label="Item Name"
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                />
+                <TextField
+                  label="Quantity"
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value ? Number(e.target.value) : '')}
+                  fullWidth
+                  variant="outlined"
+                />
+              </Box>
+              <Button
+                variant="contained"
+                onClick={createSalesOrder}
+                disabled={!itemName || !quantity}
+                startIcon={<SalesIcon />}
+                sx={{
+                  bgcolor: themeStyles.buttonBg,
+                  color: themeStyles.buttonText,
+                  '&:hover': { bgcolor: themeStyles.buttonBg, opacity: 0.9 },
+                  borderRadius: 2,
+                }}
+              >
+                Create Order
+              </Button>
+              {salesOrders.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle1">Recent Orders</Typography>
+                  {salesOrders.map((order) => (
+                    <Typography key={order.id}>
+                      {order.quantity} x {order.item} - {order.timestamp}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+            </Paper>
+          </>
+        )}
+
+        {/* Other Role-Specific Features */}
         {location.pathname === '/dashboard' && (
-          <Paper
-            sx={{
-              p: 3,
-              mb: 3,
-              backgroundColor: isDarkMode ? '#1e1e1e' : '#fff',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-            }}
-          >
-            <Typography variant="h6" gutterBottom>
-              Weekly Clock Activity
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="clockIns" fill={themeStyles.bg} name="Clock Ins" />
-                <Bar dataKey="clockOuts" fill={isDarkMode ? '#bbb' : '#666'} name="Clock Outs" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            {/* Feature 1: Admin - Department Activity (Pie Chart) */}
+            {(userData.role === 'admin' || userData.role === 'hr') && (
+              <Grid item xs={12} md={6}>
+                <Paper
+                  sx={{
+                    p: 3,
+                    backgroundColor: isDarkMode ? '#1e1e1e' : '#fff',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <Typography variant="h6" gutterBottom>
+                    Department Activity Distribution
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={departmentActivity}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label
+                      >
+                        {departmentActivity.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* Feature 2: Shipping - Order Status (Card Style) */}
+            {userData.role === 'shipping' && (
+              <Grid item xs={12} md={6}>
+                <Paper
+                  sx={{
+                    p: 3,
+                    backgroundColor: isDarkMode ? '#1e1e1e' : '#fff',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <Typography variant="h6" gutterBottom>
+                    Shipping Status Overview
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {shippingStatus.map((status) => (
+                      <Grid item xs={4} key={status.status}>
+                        <Card sx={{ backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }}>
+                          <CardContent>
+                            <Typography variant="h6">{status.count}</Typography>
+                            <Typography variant="body2">{status.status}</Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* Feature 3: Accounting - Commission Trends (Line Chart) */}
+            {userData.role === 'accounting' && (
+              <Grid item xs={12} md={6}>
+                <Paper
+                  sx={{
+                    p: 3,
+                    backgroundColor: isDarkMode ? '#1e1e1e' : '#fff',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <Typography variant="h6" gutterBottom>
+                    Commission Trends (2025)
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={commissionData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="commission" stroke={themeStyles.bg} name="Commission ($)" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
         )}
 
         {children}
+
+        {/* Chat Component */}
+        <Chat socket={socket} userData={userData} messages={messages} />
 
         {/* Preferences Section */}
         {location.pathname === '/preferences' && (
