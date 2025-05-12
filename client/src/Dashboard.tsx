@@ -405,8 +405,30 @@ function Dashboard({ userData, updateDepartment, searchQuery }: DashboardProps) 
             <Card>
               <CardContent>
                 <Typography variant="h6">Submit CV</Typography>
-                <input type="file" accept="application/pdf" onChange={e => setFile(e.target.files?.[0] || null)} />
-                <Button variant="contained" onClick={handleCVSubmit} sx={{ mt: 2 }}>Submit CV</Button>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => setFile(e.target.files?.[0] || null)}
+                />
+                <Button variant="contained" onClick={handleCVSubmit} sx={{ mt: 2 }}>
+                  Submit CV
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {userData.role === 'employee' && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6">Clock Actions</Typography>
+                <Button variant="contained" onClick={handleClockIn} sx={{ mr: 2 }}>
+                  Clock In
+                </Button>
+                <Button variant="contained" onClick={handleClockOut}>
+                  Clock Out
+                </Button>
               </CardContent>
             </Card>
           </Grid>
@@ -526,19 +548,19 @@ function Dashboard({ userData, updateDepartment, searchQuery }: DashboardProps) 
                 <CardContent>
                   <Typography variant="h6">Education Distribution</Typography>
                   <PieChart width={400} height={300}>
-                    <Pie
-                      data={educationData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label
-                    >
-                      {educationData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
+                  <Pie
+                        data={educationData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label
+                      >
+                        {educationData.map((_, index) => ( // Remove 'entry' parameter
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
                     <Tooltip />
                     <Legend />
                   </PieChart>
