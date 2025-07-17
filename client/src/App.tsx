@@ -10,7 +10,7 @@ import ManageCVs from './components/ManageCVs';
 import Login from './components/Login';
 import { User, Message } from './models/User';
 
-const socket = io('http://localhost:5000', { autoConnect: false });
+const socket = io('http://localhost:5001', { autoConnect: false });
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -20,7 +20,7 @@ const App = () => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      axios.get('http://localhost:5000/api/users/1') // Adjust ID or fetch based on token
+      axios.get('http://localhost:5001/api/users/1') // Adjust ID or fetch based on token
         .then((response) => {
           setUserData(response.data);
           setIsAuthenticated(true);
@@ -43,7 +43,7 @@ const App = () => {
   }, []);
 
   const handleLogin = (email: string, password: string) => {
-    axios.get('http://localhost:5000/api/users')
+    axios.get('http://localhost:5001/api/users')
       .then((response) => {
         const user = response.data.find((u: any) => u.email === email && u.password === password);
         if (user) {
@@ -89,9 +89,7 @@ const App = () => {
           path="/dashboard"
           element={
             isAuthenticated ? (
-              <Layout userData={userData!} onLogout={handleLogout} onSearch={handleSearch} socket={socket} messages={messages}>
-                <Dashboard userData={userData!} />
-              </Layout>
+              <Dashboard userData={userData!} />
             ) : (
               <Navigate to="/" />
             )

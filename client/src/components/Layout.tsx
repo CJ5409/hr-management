@@ -35,12 +35,9 @@ import {
   Notifications as NotificationsIcon,
   Timeline as TimelineIcon,
   ShoppingCart as SalesIcon,
-  People as PeopleIcon,
-  LocalShipping as ShippingIcon,
-  AccountBalance as AccountingIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import axios from 'axios';
 import Chat from './Chat';
 import { Socket } from 'socket.io-client';
@@ -604,7 +601,7 @@ const Layout = ({ userData, onLogout, onSearch, children, socket, messages }: La
                         dataKey="value"
                         label
                       >
-                        {departmentActivity.map((entry, index) => (
+                        {departmentActivity.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
