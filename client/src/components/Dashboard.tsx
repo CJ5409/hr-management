@@ -1,7 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
+import jsPDF from 'jspdf';
+// Import autotable as a side effect
+import 'jspdf-autotable';
+import axios from 'axios';
 // import your user context or props as needed
 // import { UserContext } from '../context/UserContext';
+import PerformanceAnalysis from './PerformanceAnalysis';
 
 interface DashboardProps {
   userData: {
@@ -11,9 +16,10 @@ interface DashboardProps {
     position?: string;
     // add other user fields as needed
   };
+  onLogout?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
+const Dashboard: React.FC<DashboardProps> = ({ userData, onLogout }) => {
   // Example: const { userData } = useContext(UserContext);
   // You can use userData.role to conditionally render sections
 
@@ -369,7 +375,362 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
     { from: 'me', text: 'My laptop is slow.', time: 'just now' },
   ];
 
-  return (
+  // PDF Generation Function
+  const generatePerformanceReport = () => {
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(33, 33, 33);
+    doc.text('Employee Performance Report', 20, 20);
+    
+    // Date and filters
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
+    doc.text(`Department: ${selectedDepartment}`, 20, 45);
+    doc.text(`Time Period: ${selectedTime}`, 20, 55);
+    
+    // Check if autoTable is available, if not create manual table
+    if (typeof (doc as any).autoTable === 'function') {
+      // Performance data table using autoTable
+      const tableData = perfData.departments.map((dept, index) => [
+        dept,
+        `${perfData.productivity[index]}%`,
+        `${perfData.quality[index]}%`,
+        `${perfData.attendance[index]}%`
+      ]);
+      
+      (doc as any).autoTable({
+        startY: 70,
+        head: [['Department', 'Productivity', 'Quality', 'Attendance']],
+        body: tableData,
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: 255,
+          fontSize: 12,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 10
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        margin: { top: 20 }
+      });
+      
+      // Summary statistics
+      const finalY = (doc as any).lastAutoTable.finalY + 20;
+      doc.setFontSize(14);
+      doc.setTextColor(33, 33, 33);
+      doc.text('Summary Statistics', 20, finalY);
+      
+      const avgProductivity = (perfData.productivity.reduce((a, b) => a + b, 0) / perfData.productivity.length).toFixed(1);
+      const avgQuality = (perfData.quality.reduce((a, b) => a + b, 0) / perfData.quality.length).toFixed(1);
+      const avgAttendance = (perfData.attendance.reduce((a, b) => a + b, 0) / perfData.attendance.length).toFixed(1);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Average Productivity: ${avgProductivity}%`, 20, finalY + 15);
+      doc.text(`Average Quality: ${avgQuality}%`, 20, finalY + 25);
+      doc.text(`Average Attendance: ${avgAttendance}%`, 20, finalY + 35);
+    } else {
+      // Fallback: Create table manually
+      const startY = 70;
+      const colWidths = [60, 30, 30, 30];
+      const headers = ['Department', 'Productivity', 'Quality', 'Attendance'];
+      
+      // Draw headers
+      doc.setFillColor(59, 130, 246);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      
+      let x = 20;
+      headers.forEach((header, i) => {
+        doc.rect(x, startY, colWidths[i], 10, 'F');
+        doc.text(header, x + 2, startY + 7);
+        x += colWidths[i];
+      });
+      
+      // Draw data rows
+      doc.setFillColor(255, 255, 255);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      
+      perfData.departments.forEach((dept, index) => {
+        const y = startY + 10 + (index * 8);
+        
+        // Alternate row colors
+        if (index % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(20, y, colWidths.reduce((a, b) => a + b, 0), 8, 'F');
+        }
+        
+        x = 20;
+        doc.text(dept, x + 2, y + 6);
+        x += colWidths[0];
+        doc.text(`${perfData.productivity[index]}%`, x + 2, y + 6);
+        x += colWidths[1];
+        doc.text(`${perfData.quality[index]}%`, x + 2, y + 6);
+        x += colWidths[2];
+        doc.text(`${perfData.attendance[index]}%`, x + 2, y + 6);
+      });
+      
+      // Summary statistics
+      const finalY = startY + 10 + (perfData.departments.length * 8) + 20;
+      doc.setFontSize(14);
+      doc.setTextColor(33, 33, 33);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary Statistics', 20, finalY);
+      
+      const avgProductivity = (perfData.productivity.reduce((a, b) => a + b, 0) / perfData.productivity.length).toFixed(1);
+      const avgQuality = (perfData.quality.reduce((a, b) => a + b, 0) / perfData.quality.length).toFixed(1);
+      const avgAttendance = (perfData.attendance.reduce((a, b) => a + b, 0) / perfData.attendance.length).toFixed(1);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Average Productivity: ${avgProductivity}%`, 20, finalY + 15);
+      doc.text(`Average Quality: ${avgQuality}%`, 20, finalY + 25);
+      doc.text(`Average Attendance: ${avgAttendance}%`, 20, finalY + 35);
+    }
+    
+    // Save the PDF
+    doc.save(`performance-report-${selectedDepartment.toLowerCase().replace(' ', '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    // Show success message
+    addMessage('Performance report generated successfully!');
+  };
+
+  // --- JOBS STATE FOR OPEN POSITIONS ---
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobModalOpen, setJobModalOpen] = useState(false);
+  const [jobForm, setJobForm] = useState({
+    title: '',
+    description: '',
+    requirements: '',
+    location: '',
+    department: '',
+  });
+  const [jobLoading, setJobLoading] = useState(false);
+  const [jobError, setJobError] = useState('');
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get('/api/jobs');
+      setJobs(res.data);
+    } catch {
+      setJobs([]);
+    }
+  };
+
+  const handleJobFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setJobForm({ ...jobForm, [e.target.name]: e.target.value });
+  };
+
+  const handleCreateJob = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setJobLoading(true);
+    setJobError('');
+    try {
+      const requirementsArr = jobForm.requirements.split(',').map(r => r.trim()).filter(Boolean);
+      await axios.post('/api/jobs', { ...jobForm, requirements: requirementsArr });
+      setJobModalOpen(false);
+      setJobForm({ title: '', description: '', requirements: '', location: '', department: '' });
+      fetchJobs();
+      addMessage('Job created successfully!');
+    } catch {
+      setJobError('Failed to create job.');
+    } finally {
+      setJobLoading(false);
+    }
+  };
+
+  // --- APPLICATIONS STATE FOR HR REVIEW ---
+  const [applications, setApplications] = useState<any[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<any>(null);
+  const [showAIModal, setShowAIModal] = useState(false);
+
+  useEffect(() => {
+    fetchJobs();
+    fetchApplications();
+  }, []);
+
+  const fetchApplications = async () => {
+    setApplicationsLoading(true);
+    try {
+      const res = await axios.get('/api/applications');
+      setApplications(res.data);
+    } catch {
+      setApplications([]);
+    } finally {
+      setApplicationsLoading(false);
+    }
+  };
+
+  // Helper to get job title by jobId
+  const getJobTitle = (jobId: any) => {
+    const job = jobs.find(j => String(j.id) === String(jobId));
+    return job ? job.title : 'Unknown';
+  };
+
+  // Add at the top of the Dashboard component, after other useState hooks
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  // Add at the top of the Dashboard component, after other useState hooks
+  const [deferModalOpen, setDeferModalOpen] = useState(false);
+  const [deferTarget, setDeferTarget] = useState({ jobId: '', department: '' });
+  const [deferAppId, setDeferAppId] = useState(null);
+  const [deferLoading, setDeferLoading] = useState(false);
+
+  // Add state for clock records
+  const [clockTrend, setClockTrend] = useState<{count: number, diff: number, up: boolean}>({count: 0, diff: 0, up: true});
+
+  // Fetch clock records and calculate trend
+  useEffect(() => {
+    axios.get('/api/clock-records').then(res => {
+      // Calculate this week and last week counts
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      const startOfLastWeek = new Date(startOfWeek);
+      startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+      const endOfLastWeek = new Date(startOfWeek);
+      endOfLastWeek.setDate(startOfWeek.getDate() - 1);
+      const thisWeek = res.data.filter((r: any) => {
+        const t = new Date(r.time);
+        return t >= startOfWeek && t <= now;
+      });
+      const lastWeek = res.data.filter((r: any) => {
+        const t = new Date(r.time);
+        return t >= startOfLastWeek && t <= endOfLastWeek;
+      });
+      const diff = thisWeek.length - lastWeek.length;
+      setClockTrend({count: thisWeek.length, diff: Math.abs(diff), up: diff >= 0});
+    }).catch(() => setClockTrend({count: 0, diff: 0, up: true}));
+  }, []);
+
+  // Add state for users, clock records, and modal
+  const [users, setUsers] = useState<any[]>([]);
+  const [clockRecords, setClockRecords] = useState<any[]>([]);
+  const [selectedClock, setSelectedClock] = useState<any | null>(null);
+
+  // Fetch users and clock records
+  useEffect(() => {
+    axios.get('/api/users').then(res => setUsers(res.data)).catch(() => setUsers([]));
+    axios.get('/api/clock-records').then(res => {
+      setClockRecords(res.data.sort((a: any, b: any) => new Date(b.time).getTime() - new Date(a.time).getTime()));
+      // Calculate this week and last week counts
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      const startOfLastWeek = new Date(startOfWeek);
+      startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+      const endOfLastWeek = new Date(startOfWeek);
+      endOfLastWeek.setDate(startOfWeek.getDate() - 1);
+      const thisWeek = res.data.filter((r: any) => {
+        const t = new Date(r.time);
+        return t >= startOfWeek && t <= now;
+      });
+      const lastWeek = res.data.filter((r: any) => {
+        const t = new Date(r.time);
+        return t >= startOfLastWeek && t <= endOfLastWeek;
+      });
+      const diff = thisWeek.length - lastWeek.length;
+      setClockTrend({count: thisWeek.length, diff: Math.abs(diff), up: diff >= 0});
+    }).catch(() => setClockRecords([]));
+  }, []);
+
+  // Helper to get user name from email
+  const getUserName = (email: string) => {
+    const user = users.find(u => u.email === email);
+    return user?.name || user?.email || email;
+  };
+
+  // Add state for applications and candidate modal
+  const [candidatesModalOpen, setCandidatesModalOpen] = useState(false);
+
+  // Fetch applications
+  useEffect(() => {
+    axios.get('/api/applications').then(res => setApplications(res.data)).catch(() => setApplications([]));
+  }, []);
+
+  // Get unique candidates (by email)
+  const uniqueCandidates = Array.from(new Set(applications.map(app => app.applicantEmail)));
+  const candidateCount = uniqueCandidates.length;
+  // Optionally get names if available
+  const getCandidateName = (email: string) => {
+    const user = users.find(u => u.email === email);
+    return user?.name || email;
+  };
+
+  // 1. Anonymize candidate display for 'pending' applications for HR users
+  // 2. Sort visibleApplications by AI score descending for HR users
+  const visibleApplications = userData.role.toLowerCase() === 'hr'
+    ? applications
+        .filter(app => app.status !== 'hired')
+        .sort((a, b) => (b.aiScreening?.details?.score || 0) - (a.aiScreening?.details?.score || 0))
+    : applications;
+
+  // 3. Add a simple audit log for HR actions
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const logHRAction = (action: string, app: any) => {
+    setAuditLog(logs => [
+      { action, candidate: app.applicantName || `Candidate #${app.id}`, email: app.applicantEmail, time: new Date().toLocaleString(), by: userData.email },
+      ...logs
+    ]);
+  };
+
+  // Diversity & Inclusion Metrics
+  const departmentCounts = users.reduce((acc, user) => {
+    if (user.department) {
+      acc[user.department] = (acc[user.department] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+  const departmentData: { value: number; name: string }[] = Object.entries(departmentCounts).map(([dept, count]) => ({ value: Number(count), name: dept }));
+  const departmentOption = {
+    tooltip: { trigger: 'item' },
+    legend: { orient: 'horizontal', bottom: 0, textStyle: { color: '#4E5969' } },
+    series: [{
+      name: 'Departments',
+      type: 'pie',
+      radius: ['50%', '75%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false, position: 'center' },
+      emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
+      labelLine: { show: false },
+      data: departmentData
+    }]
+  };
+
+  // Candidate Appeal Process
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [appealsModalOpen, setAppealsModalOpen] = useState(false);
+  const fetchAppeals = async () => {
+    const res = await axios.get('/api/appeals');
+    setAppeals(res.data);
+  };
+  const resolveAppeal = (idx: number) => {
+    setAppeals(a => a.map((ap, i) => i === idx ? { ...ap, status: 'resolved' } : ap));
+  };
+
+  const [showPerformance, setShowPerformance] = useState(false);
+  const [performanceView, setPerformanceView] = useState<'employees' | 'departments' | 'goals'>('employees');
+
+  return showPerformance ? (
+    <PerformanceAnalysis view={performanceView} onBack={() => setShowPerformance(false)} />
+  ) : (
     <div className={`font-inter bg-gray-50 text-dark dark:bg-gray-900 dark:text-gray-100 min-h-screen transition-custom ${fontSizeClass}`}>
       {/* Header Navigation */}
       <header className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 nav-shadow z-50 transition-custom">
@@ -427,8 +788,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
                     performanceTimeout.current = setTimeout(() => setPerformanceMenuOpen(false), 200);
                   }}
                 >
-                  <button className="font-medium text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary flex items-center transition-custom" type="button">
-                    Performance Analysis<i className="fas fa-chevron-down ml-1 text-xs transition-transform" style={{ transform: performanceMenuOpen ? 'rotate(180deg)' : undefined }}></i>
+                  <button className="font-medium text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary flex items-center transition-custom" type="button" onClick={() => setShowPerformance(v => !v)}>
+                    Performance Analysis
+                    <i className="fas fa-chevron-down ml-1 text-xs transition-transform" style={{}}></i>
                   </button>
                   <div
                     className={`absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 transition-custom${performanceMenuOpen ? '' : ' hidden'}`}
@@ -440,9 +802,9 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
                       performanceTimeout.current = setTimeout(() => setPerformanceMenuOpen(false), 200);
                     }}
                   >
-                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button">Employee Metrics</button>
-                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button">Department Reports</button>
-                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button">Goal Tracking</button>
+                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => { setShowPerformance(true); setPerformanceView('employees'); }}>Employee Metrics</button>
+                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => { setShowPerformance(true); setPerformanceView('departments'); }}>Department Reports</button>
+                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => { setShowPerformance(true); setPerformanceView('goals'); }}>Goal Tracking</button>
                   </div>
                 </div>
               )}
@@ -472,7 +834,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
                   <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => addMessage('Profile feature coming soon!')}><i className="fas fa-user mr-2"></i>Profile</button>
                   <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => addMessage('Settings feature coming soon!')}><i className="fas fa-cog mr-2"></i>Settings</button>
                   <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                  <button className="block px-4 py-2 text-sm text-danger hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={() => addMessage('You have been logged out!')}><i className="fas fa-sign-out-alt mr-2"></i>Logout</button>
+                  <button className="block px-4 py-2 text-sm text-danger hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={onLogout}><i className="fas fa-sign-out-alt mr-2"></i>Logout</button>
                 </div>
               </div>
             </nav>
@@ -527,24 +889,25 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
                   </button>
                 </div>
               </div>
-              {/* Feedback Button */}
-              <button className="hidden md:flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-custom" onClick={() => addMessage('Feedback feature coming soon!')}>
-                <i className="fas fa-comment-dots"></i>
-                <span>Feedback</span>
-              </button>
               {/* User Profile */}
-              <div className="relative group">
+              <div
+                className="relative"
+                onMouseEnter={() => setProfileMenuOpen(true)}
+                onMouseLeave={() => setProfileMenuOpen(false)}
+              >
                 <button className="flex items-center space-x-2 focus:outline-none">
                   <img alt="User Profile" className="w-8 h-8 rounded-full object-cover border-2 border-transparent hover:border-primary transition-custom" src="https://design.gemcoder.com/staticResource/echoAiSystemImages/a0e44940c11c252165b3e480ebae9a1b.png" />
                   <span className="hidden md:block font-medium">{userData.email}</span>
                   <i className="fas fa-chevron-down text-xs text-gray-500 dark:text-gray-400 hidden md:block"></i>
                 </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 hidden group-hover:block transition-custom">
-                  <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button"><i className="fas fa-user mr-2"></i>Profile</button>
-                  <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button"><i className="fas fa-cog mr-2"></i>Settings</button>
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                  <button className="block px-4 py-2 text-sm text-danger hover:bg-gray-100 dark:hover:bg-gray-700" type="button"><i className="fas fa-sign-out-alt mr-2"></i>Logout</button>
-                </div>
+                {profileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 transition-custom">
+                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button"><i className="fas fa-user mr-2"></i>Profile</button>
+                    <button className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" type="button"><i className="fas fa-cog mr-2"></i>Settings</button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    <button className="block px-4 py-2 text-sm text-danger hover:bg-gray-100 dark:hover:bg-gray-700" type="button" onClick={onLogout}><i className="fas fa-sign-out-alt mr-2"></i>Logout</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -559,27 +922,110 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
               <h1 className="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-gray-800 dark:text-white">HR Dashboard</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">Welcome back, {userData.email}. Here's your HR overview for today.</p>
             </div>
-            {/* Add more dynamic widgets/buttons here as needed */}
+            {(userData.role === 'admin' || userData.role === 'hr') && (
+              <button
+                className="mt-4 md:mt-0 px-5 py-2 bg-primary text-white rounded-lg btn-hover font-semibold flex items-center shadow-lg"
+                onClick={() => setJobModalOpen(true)}
+              >
+                <i className="fas fa-plus mr-2"></i>Create Job
+              </button>
+            )}
           </div>
-          {/* Add metrics, charts, and role-based content here */}
         </div>
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Open Positions */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow hover:shadow-lg transition-custom">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Open Positions</p>
-                <h3 className="text-2xl md:text-3xl font-bold mt-1 text-gray-800 dark:text-white">12</h3>
-                <p className="text-success text-sm mt-2 flex items-center">
-                  <i className="fas fa-arrow-up mr-1"></i>
-                  <span>2 from last week</span>
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <i className="fas fa-briefcase text-xl"></i>
-              </div>
+        {/* Create Job Modal */}
+        {jobModalOpen && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-900 rounded-xl p-8 max-w-lg w-full mx-4 shadow-2xl relative">
+              <button className="absolute top-3 right-3 text-gray-400 hover:text-primary text-xl" onClick={() => setJobModalOpen(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+              <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white flex items-center">
+                <i className="fas fa-briefcase mr-2"></i>Create New Job
+              </h2>
+              <form className="space-y-4" onSubmit={handleCreateJob}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                  <input
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-800"
+                    name="title"
+                    value={jobForm.title}
+                    onChange={handleJobFormChange}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                  <textarea
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-800"
+                    name="description"
+                    value={jobForm.description}
+                    onChange={handleJobFormChange}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requirements <span className="text-xs text-gray-400">(comma separated)</span></label>
+                  <input
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-800"
+                    name="requirements"
+                    value={jobForm.requirements}
+                    onChange={handleJobFormChange}
+                    placeholder="e.g. Bachelor degree, 2+ years experience"
+                    required
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+                    <input
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-800"
+                      name="location"
+                      value={jobForm.location}
+                      onChange={handleJobFormChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                    <input
+                      className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-800"
+                      name="department"
+                      value={jobForm.department}
+                      onChange={handleJobFormChange}
+                      required
+                    />
+                  </div>
+                </div>
+                {jobError && <div className="text-red-500 text-sm">{jobError}</div>}
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-primary to-secondary text-white font-semibold py-3 px-4 rounded-lg btn-hover flex items-center justify-center"
+                  disabled={jobLoading}
+                >
+                  {jobLoading ? 'Creating...' : 'Create Job'}
+                  <i className="fas fa-arrow-right ml-2"></i>
+                </button>
+              </form>
             </div>
+          </div>
+        )}
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          {/* Open Positions */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow hover:shadow-lg transition-custom">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Open Positions</p>
+                <h3 className="text-2xl md:text-3xl font-bold mt-1 text-gray-800 dark:text-white">{jobs.length}</h3>
+                  <p className="text-success text-sm mt-2 flex items-center">
+                    <i className="fas fa-arrow-up mr-1"></i>
+                  <span>+{jobs.length > 10 ? jobs.length - 10 : 0} from last week</span>
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <i className="fas fa-briefcase text-xl"></i>
+                </div>
+              </div>
             <div className="mt-4 h-10">
               <ReactECharts option={openPositionsChartOption} style={{ height: 40 }} />
             </div>
@@ -589,11 +1035,17 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Candidates</p>
-                <h3 className="text-2xl md:text-3xl font-bold mt-1 text-gray-800 dark:text-white">148</h3>
+                <h3 className="text-2xl md:text-3xl font-bold mt-1 text-gray-800 dark:text-white">{candidateCount}</h3>
                 <p className="text-danger text-sm mt-2 flex items-center">
                   <i className="fas fa-arrow-down mr-1"></i>
                   <span>5 from last week</span>
                 </p>
+                <button
+                  className="mt-2 text-xs text-primary underline hover:text-primary/80 transition"
+                  onClick={() => setCandidatesModalOpen(true)}
+                >
+                  More details
+                </button>
               </div>
               <div className="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
                 <i className="fas fa-user-plus text-xl"></i>
@@ -640,6 +1092,71 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
             <div className="mt-4 h-10">
               <ReactECharts option={hiresChartOption} style={{ height: 40 }} />
             </div>
+          </div>
+          {/* Clock In/Out Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow hover:shadow-lg transition-custom">
+            <div className="flex justify-between items-start">
+              <div className="w-full">
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Clock In/Out</p>
+                <h3 className="text-2xl md:text-3xl font-bold mt-1 text-gray-800 dark:text-white">
+                  {clockTrend.count}
+                </h3>
+                <p className={`text-${clockTrend.up ? 'success' : 'danger'} text-sm mt-2 flex items-center`}>
+                  <i className={`fas fa-arrow-${clockTrend.up ? 'up' : 'down'} mr-1`}></i>
+                  <span>{clockTrend.up ? '+' : '-'}{clockTrend.diff} from last week</span>
+                </p>
+                {/* Recent events list */}
+                <div className="mt-4 max-h-40 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+                  {clockRecords.slice(0, 7).map((rec, idx) => (
+                    <button
+                      key={rec.id || idx}
+                      className="w-full text-left py-2 px-1 hover:bg-primary/5 rounded flex items-center gap-2"
+                      onClick={() => setSelectedClock(rec)}
+                    >
+                      <span className="font-medium text-gray-800 dark:text-white">{getUserName(rec.email)}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">clocked {rec.type === 'in' ? 'in' : 'out'}</span>
+                      <span className="ml-auto text-xs text-gray-400">{new Date(rec.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    </button>
+                  ))}
+                  {clockRecords.length === 0 && <div className="text-xs text-gray-400 py-2">No clock records</div>}
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-lg bg-info/10 flex items-center justify-center text-info ml-2">
+                <i className="fas fa-clock text-xl"></i>
+              </div>
+            </div>
+            {/* Modal for details */}
+            {selectedClock && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-xs w-full mx-4 shadow-2xl relative">
+                  <button className="absolute top-3 right-3 text-gray-400 hover:text-primary text-xl" onClick={() => setSelectedClock(null)}>
+                    <i className="fas fa-times"></i>
+                  </button>
+                  <h2 className="text-lg font-bold mb-2 text-gray-800 dark:text-white flex items-center">
+                    <i className="fas fa-clock mr-2"></i>Clock Event Details
+                  </h2>
+                  <div className="mb-2">
+                    <span className="font-semibold">User:</span> {getUserName(selectedClock.email)}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-semibold">Type:</span> {selectedClock.type === 'in' ? 'Clock In' : 'Clock Out'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-semibold">Time:</span> {new Date(selectedClock.time).toLocaleString()}
+                  </div>
+                  {selectedClock.address && (
+                    <div className="mb-2">
+                      <span className="font-semibold">Address:</span> {selectedClock.address}
+                    </div>
+                  )}
+                  {selectedClock.location && (
+                    <div className="mb-2">
+                      <span className="font-semibold">Location:</span> {selectedClock.location.latitude.toFixed(5)}, {selectedClock.location.longitude.toFixed(5)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {/* Charts Section */}
@@ -809,7 +1326,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
               </div>
               <button
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-custom"
-                onClick={() => addMessage('Report generated!')}
+                onClick={generatePerformanceReport}
               >
                 Generate Report
               </button>
@@ -818,6 +1335,239 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
           <div className="w-full h-[300px]">
             <ReactECharts option={performanceMetricsOption} style={{ height: 300 }} />
           </div>
+        </div>
+        {/* Applications & AI Screening Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white">Job Applications & AI Screening</h2>
+            <button className="text-sm text-primary hover:underline transition-custom" onClick={fetchApplications} disabled={applicationsLoading}>
+              {applicationsLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+          {applications.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">No applications yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Job</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Applicant</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">CV</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">AI Rating</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Highlights</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                  {visibleApplications.map(app => (
+                    <tr key={app.id}>
+                      <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-100 font-medium">{getJobTitle(app.jobId)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">
+                        {userData.role.toLowerCase() === 'hr' && app.status === 'pending' ? (
+                          <>
+                            <div>{`Candidate #${app.id}`}</div>
+                            <div className="text-xs text-gray-400">(anonymized)</div>
+                          </>
+                        ) : (
+                          <>
+                            <div>{app.applicantName}</div>
+                            <div className="text-xs text-gray-400">{app.applicantEmail}</div>
+                          </>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <div className="space-y-1">
+                          <a
+                            href={`http://localhost:5001/api/applications/${app.id}/cv`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline flex items-center text-xs"
+                          >
+                            <i className="fas fa-file-pdf mr-1"></i>Original CV
+                          </a>
+                          <a
+                            href={`http://localhost:5001/api/applications/${app.id}/ai-highlighted-original`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-600 hover:underline flex items-center text-xs"
+                          >
+                            <i className="fas fa-highlighter mr-1"></i>AI-Highlighted
+                          </a>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <button
+                          onClick={() => {
+                            setSelectedApplication(app);
+                            setShowAIModal(true);
+                          }}
+                          className="text-left hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className={
+                              app.aiScreening?.rating === 'Highly Recommended' ? 'text-green-600 font-bold' :
+                              app.aiScreening?.rating === 'Rejected' ? 'text-red-600 font-bold' :
+                              'text-yellow-600 font-bold'
+                            }>
+                              {app.aiScreening?.rating || 'N/A'}
+                            </span>
+                            {app.aiScreening?.details?.score && (
+                              <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                                Score: {app.aiScreening.details.score}/100
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">{app.aiScreening?.summary}</div>
+                          {app.aiScreening?.details?.confidence && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Confidence: {app.aiScreening.details.confidence}%
+                            </div>
+                          )}
+                          <div className="text-xs text-primary mt-1">Click to view details →</div>
+                        </button>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <div className="space-y-1">
+                          {app.aiScreening?.highlights?.length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Key Highlights:</div>
+                              <ul className="list-disc list-inside text-xs text-gray-600 dark:text-gray-300">
+                                {app.aiScreening.highlights.map((h: string, i: number) => <li key={i}>{h}</li>)}
+                              </ul>
+                            </div>
+                          )}
+                          {app.aiScreening?.details?.skills?.length > 0 && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Skills:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {app.aiScreening.details.skills.map((skill: string, i: number) => (
+                                  <span key={i} className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1 py-0.5 rounded">
+                                    {skill}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-sm">
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+                          app.status === 'pending' ? 'bg-blue-100 text-blue-800' :
+                          app.status === 'waiting for onboarding' ? 'bg-yellow-100 text-yellow-800' :
+                          app.status === 'hired' ? 'bg-green-100 text-green-800' :
+                          app.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          app.status === 'withdrawn' ? 'bg-gray-300 text-gray-700' :
+                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                        }`}>
+                          {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                        </span>
+                        {/* Withdrawn: show Delete button */}
+                        {app.status === 'withdrawn' && (
+                          <button
+                            className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition"
+                            onClick={async () => {
+                              // Optionally call backend to delete
+                              await axios.delete(`/api/applications/${app.id}`);
+                              setApplications(applications => applications.filter(a => a.id !== app.id));
+                              logHRAction('delete_withdrawn', app);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        {/* Defer Modal */}
+        {deferModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Defer Candidate</h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Select New Job</label>
+                <select
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-700"
+                  value={deferTarget.jobId}
+                  onChange={e => setDeferTarget({ ...deferTarget, jobId: e.target.value })}
+                >
+                  <option value="">-- Select Job --</option>
+                  {jobs.map(job => (
+                    <option key={job.id} value={job.id}>{job.title} ({job.department})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Or Enter Department</label>
+                <input
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 input-focus bg-white dark:bg-gray-700"
+                  placeholder="Department name"
+                  value={deferTarget.department}
+                  onChange={e => setDeferTarget({ ...deferTarget, department: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <button
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                  onClick={() => setDeferModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={deferLoading}
+                  onClick={async () => {
+                    setDeferLoading(true);
+                    try {
+                      if (deferTarget.jobId) {
+                        await axios.patch(`/api/applications/${deferAppId}/defer`, { jobId: deferTarget.jobId });
+                      } else if (deferTarget.department) {
+                        await axios.patch(`/api/applications/${deferAppId}/defer`, { department: deferTarget.department });
+                      }
+                      setDeferModalOpen(false);
+                      setDeferTarget({ jobId: '', department: '' });
+                      setDeferAppId(null);
+                      fetchApplications();
+                    } finally {
+                      setDeferLoading(false);
+                    }
+                  }}
+                >
+                  {deferLoading ? 'Deferring...' : 'Defer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Diversity & Inclusion Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Diversity & Inclusion Metrics */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold text-gray-800 dark:text-white">Diversity & Inclusion</h2>
+            </div>
+            <div className="w-full h-[300px]">
+              <ReactECharts option={departmentOption} style={{ height: 300 }} />
+            </div>
+            <div className="mt-4">
+              {Array.isArray(departmentData) && departmentData.length > 0 ? (
+                departmentData.map((d: { name: string; value: number }) => (
+                  <div key={d.name} className="flex items-center justify-between text-sm mb-1">
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{d.name}</span>
+                    <span className="text-gray-500 dark:text-gray-400">{d.value}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-gray-400">No department data available.</div>
+              )}
+            </div>
+          </div>
+          {/* ...existing other cards... */}
         </div>
         {/* ...rest of the dashboard content, metrics, charts, activities, etc. ... */}
       </main>
@@ -941,6 +1691,331 @@ const Dashboard: React.FC<DashboardProps> = ({ userData }) => {
           </div>
         )}
       </div>
+
+      {/* AI Screening Details Modal */}
+      {showAIModal && selectedApplication && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                AI Screening Details - {selectedApplication.applicantName}
+              </h3>
+              <button
+                onClick={() => setShowAIModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Applicant Info */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <h4 className="font-semibold text-gray-800 dark:text-white mb-2">Applicant Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Name:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">{selectedApplication.applicantName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Email:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">{selectedApplication.applicantEmail}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Job Applied:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">{getJobTitle(selectedApplication.jobId)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Applied Date:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">
+                      {new Date(selectedApplication.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Rating */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <h4 className="font-semibold text-gray-800 dark:text-white mb-2">AI Assessment</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Overall Rating:</span>
+                    <span className={`ml-2 font-bold ${
+                      selectedApplication.aiScreening?.rating === 'Highly Recommended' ? 'text-green-600' :
+                      selectedApplication.aiScreening?.rating === 'Rejected' ? 'text-red-600' :
+                      'text-yellow-600'
+                    }`}>
+                      {selectedApplication.aiScreening?.rating}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Score:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">
+                      {selectedApplication.aiScreening?.details?.score}/100
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-300">Confidence:</span>
+                    <span className="ml-2 text-gray-800 dark:text-white">
+                      {selectedApplication.aiScreening?.details?.confidence}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Detailed Analysis */}
+              {selectedApplication.aiScreening?.details && (
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 dark:text-white mb-2">Detailed Analysis</h4>
+                  <div className="space-y-3">
+                    {selectedApplication.aiScreening.details.education && (
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-300 text-sm">Education:</span>
+                        <span className="ml-2 text-gray-800 dark:text-white text-sm">
+                          {selectedApplication.aiScreening.details.education}
+                        </span>
+                      </div>
+                    )}
+                    {selectedApplication.aiScreening.details.experience && (
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-300 text-sm">Experience:</span>
+                        <span className="ml-2 text-gray-800 dark:text-white text-sm">
+                          {selectedApplication.aiScreening.details.experience}
+                        </span>
+                      </div>
+                    )}
+                    {selectedApplication.aiScreening.details.skills?.length > 0 && (
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-300 text-sm">Skills:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {selectedApplication.aiScreening.details.skills.map((skill: string, i: number) => (
+                            <span key={i} className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedApplication.aiScreening.details.languages?.length > 0 && (
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-300 text-sm">Languages:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {selectedApplication.aiScreening.details.languages.map((lang: string, i: number) => (
+                            <span key={i} className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded">
+                              {lang}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Analysis & Reasoning */}
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <h4 className="font-semibold text-gray-800 dark:text-white mb-2">AI Analysis & Reasoning</h4>
+                <div className="space-y-3">
+                  {/* Key Highlights */}
+                  {selectedApplication.aiScreening?.highlights?.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">✅ Positive Factors:</div>
+                      <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-200 space-y-1">
+                        {selectedApplication.aiScreening.highlights.map((highlight: string, i: number) => (
+                          <li key={i} className="text-green-700 dark:text-green-300">{highlight}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {/* AI Reasoning */}
+                  <div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">🤖 AI Reasoning:</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 p-3 rounded border">
+                      {selectedApplication.aiScreening?.rating === 'Highly Recommended' && (
+                        <p>This candidate demonstrates exceptional qualifications with relevant education, substantial experience, and strong performance metrics. The combination of technical skills and leadership experience makes them an ideal fit for the position.</p>
+                      )}
+                      {selectedApplication.aiScreening?.rating === 'Recommended' && (
+                        <p>This candidate meets the basic requirements and shows potential. While they may need some development, their background and skills align well with the role requirements.</p>
+                      )}
+                      {selectedApplication.aiScreening?.rating === 'Rejected' && (
+                        <p>This candidate does not meet the minimum requirements for the position. Key gaps include insufficient education level and limited relevant experience that would prevent them from performing effectively in this role.</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Keyword Analysis */}
+                  <div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">🔍 Keywords Found:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedApplication.aiScreening?.details?.skills?.map((skill: string, i: number) => (
+                        <span key={i} className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded border">
+                          {skill}
+                        </span>
+                      ))}
+                      {selectedApplication.aiScreening?.details?.languages?.map((lang: string, i: number) => (
+                        <span key={i} className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded border">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <a
+                  href={`http://localhost:5001/api/applications/${selectedApplication.id}/cv`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors inline-block"
+                >
+                  <i className="fas fa-file-pdf mr-2"></i>Original CV
+                </a>
+                <a
+                  href={`http://localhost:5001/api/applications/${selectedApplication.id}/ai-highlighted-original`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors inline-block"
+                >
+                  <i className="fas fa-highlighter mr-2"></i>AI-Highlighted CV
+                </a>
+                {/* HR Action Buttons - Best Practice */}
+                {userData.role.toLowerCase() === 'hr' && selectedApplication.status === 'pending' && (
+                  <div className="flex justify-end space-x-2 mb-4">
+                    <button
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to HIRE this candidate?')) {
+                          await axios.post(`/api/applications/${selectedApplication.id}/hire`);
+                          setShowAIModal(false);
+                          fetchApplications();
+                        }
+                      }}
+                    >
+                      <i className="fas fa-user-check mr-2"></i>Hire
+                    </button>
+                    <button
+                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                      onClick={() => {
+                        setDeferAppId(selectedApplication.id);
+                        setDeferModalOpen(true);
+                      }}
+                    >
+                      <i className="fas fa-clock mr-2"></i>Defer
+                    </button>
+                    <button
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to REJECT this candidate?')) {
+                          await axios.patch(`/api/applications/${selectedApplication.id}/reject`);
+                          setShowAIModal(false);
+                          fetchApplications();
+                        }
+                      }}
+                    >
+                      <i className="fas fa-user-times mr-2"></i>Reject
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowAIModal(false)}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Candidates Modal */}
+      {candidatesModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-xs w-full mx-4 shadow-2xl relative">
+            <button className="absolute top-3 right-3 text-gray-400 hover:text-primary text-xl" onClick={() => setCandidatesModalOpen(false)}>
+              <i className="fas fa-times"></i>
+            </button>
+            <h2 className="text-lg font-bold mb-2 text-gray-800 dark:text-white flex items-center">
+              <i className="fas fa-user-plus mr-2"></i>Recent Candidates
+            </h2>
+            <div className="max-h-60 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+              {uniqueCandidates.slice(0, 20).map(email => (
+                <div key={email} className="py-2 px-1">
+                  <span className="font-medium text-gray-800 dark:text-white">{getCandidateName(email)}</span>
+                  <span className="ml-2 text-xs text-gray-500">{email}</span>
+                </div>
+              ))}
+              {uniqueCandidates.length === 0 && <div className="text-xs text-gray-400 py-2">No candidates</div>}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Audit Log Modal */}
+      {auditModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl relative">
+            <button className="absolute top-3 right-3 text-gray-400 hover:text-primary text-xl" onClick={() => setAuditModalOpen(false)}>
+              <i className="fas fa-times"></i>
+            </button>
+            <h2 className="text-lg font-bold mb-2 text-gray-800 dark:text-white flex items-center">
+              <i className="fas fa-clipboard-list mr-2"></i>Audit Log
+            </h2>
+            <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+              {auditLog.length === 0 ? (
+                <div className="text-xs text-gray-400 py-2">No actions logged yet.</div>
+              ) : (
+                auditLog.map((log, idx) => (
+                  <div key={idx} className="py-2 px-1">
+                    <span className="font-medium text-gray-800 dark:text-white">{log.action.toUpperCase()}</span>
+                    <span className="ml-2 text-xs text-gray-500">{log.candidate} ({log.email})</span>
+                    <span className="ml-2 text-xs text-gray-400">by {log.by} at {log.time}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Appeals Modal */}
+      {appealsModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl relative">
+            <button className="absolute top-3 right-3 text-gray-400 hover:text-primary text-xl" onClick={() => setAppealsModalOpen(false)}>
+              <i className="fas fa-times"></i>
+            </button>
+            <h2 className="text-lg font-bold mb-2 text-gray-800 dark:text-white flex items-center">
+              <i className="fas fa-gavel mr-2"></i>Candidate Appeals
+            </h2>
+            <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+              {appeals.length === 0 ? (
+                <div className="text-xs text-gray-400 py-2">No appeals submitted.</div>
+              ) : (
+                appeals.map((ap, idx) => (
+                  <div key={idx} className="py-2 px-1">
+                    <div className="font-medium text-gray-800 dark:text-white">{ap.email} (App ID: {ap.applicationId})</div>
+                    <div className="text-xs text-gray-500 mb-1">{ap.reason}</div>
+                    <div className="text-xs text-gray-400 mb-1">{new Date(ap.time).toLocaleString()}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${ap.status === 'resolved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{ap.status}</span>
+                      {ap.status !== 'resolved' && (
+                        <button className="text-xs text-primary underline" onClick={() => resolveAppeal(idx)}>Mark as Resolved</button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* For demo: add a button to simulate a candidate appeal (in the dashboard, for now) */}
+      <button className="ml-4 text-xs text-secondary underline" onClick={async () => {
+        await axios.post('/api/appeals', { email: userData.email, applicationId: 999, reason: 'I believe my AI score was unfair.' });
+        alert('Appeal submitted!');
+      }}>Simulate Candidate Appeal</button>
+      <button className="ml-4 text-xs text-primary underline" onClick={async () => { await fetchAppeals(); setAppealsModalOpen(true); }}>View Appeals</button>
     </div>
   );
 };

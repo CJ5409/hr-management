@@ -1,0 +1,38 @@
+[
+  {
+    "to": "js1@js.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as HR!",
+    "timestamp": "2025-07-24T17:46:14.022Z"
+  },
+  {
+    "to": "carol.wong@example.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as HR!",
+    "timestamp": "2025-07-24T17:46:23.675Z"
+  },
+  {
+    "to": "js1@js.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as HR!",
+    "timestamp": "2025-07-24T17:53:24.986Z"
+  },
+  {
+    "to": "alice.lee@example.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as Sales!",
+    "timestamp": "2025-07-24T17:59:06.136Z"
+  },
+  {
+    "to": "carol.wong@example.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as HR!",
+    "timestamp": "2025-07-26T07:43:16.355Z"
+  },
+  {
+    "to": "carol.wong@example.com",
+    "from": "IT Helpdesk",
+    "message": "Congrats, you are hired and onboarded as HR!",
+    "timestamp": "2025-07-26T08:42:36.166Z"
+  }
+]

@@ -1,0 +1,36 @@
+[
+  {
+    "id": 1,
+    "email": "hr@example.com",
+    "name": "HR Manager",
+    "type": "in",
+    "time": "2025-07-24T07:45:19.932Z",
+    "location": {
+      "latitude": 37.785834,
+      "longitude": -122.406417,
+      "altitude": 0,
+      "altitudeAccuracy": -1,
+      "accuracy": 5,
+      "heading": -1,
+      "speed": -1
+    },
+    "address": "Ellis St Powell St, San Francisco CA"
+  },
+  {
+    "id": 2,
+    "email": "hr@example.com",
+    "name": "HR Manager",
+    "type": "out",
+    "time": "2025-07-24T07:45:24.543Z",
+    "location": {
+      "longitude": -122.406417,
+      "accuracy": 5,
+      "latitude": 37.785834,
+      "speed": -1,
+      "altitudeAccuracy": -1,
+      "altitude": 0,
+      "heading": -1
+    },
+    "address": "Ellis St Powell St, San Francisco CA"
+  }
+]

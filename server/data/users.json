@@ -1,0 +1,127 @@
+[
+  {
+    "id": 1,
+    "email": "employee1@example.com",
+    "password": "password1",
+    "role": "employee",
+    "department": "Sales",
+    "position": "Sales Associate"
+  },
+  {
+    "id": 2,
+    "email": "admin@example.com",
+    "password": "$2b$10$9/AXKoxpV2D2EN/9LfdwPO377p2f5TRU6kQjY7UNxJL2KpBprJEaS",
+    "role": "admin",
+    "department": "IT",
+    "position": "System Administrator"
+  },
+  {
+    "id": 3,
+    "email": "hr1@example.com",
+    "password": "hr",
+    "role": "hr",
+    "department": "HR",
+    "position": "HR Specialist"
+  },
+  {
+    "id": 4,
+    "email": "manager@example.com",
+    "password": "password4",
+    "role": "manager",
+    "department": "Sales",
+    "position": "Sales Manager"
+  },
+  {
+    "id": 5,
+    "email": "shipping@example.com",
+    "password": "shipping",
+    "role": "shipping",
+    "department": "Shipping",
+    "position": "Shipping Clerk"
+  },
+  {
+    "id": 6,
+    "email": "accounting@example.com",
+    "password": "accounting",
+    "role": "accounting",
+    "department": "Accounting",
+    "position": "Accountant"
+  },
+  {
+    "id": 7,
+    "email": "salesman1@example.com",
+    "password": "password7",
+    "role": "salesman",
+    "department": "Sales",
+    "position": "Sales Associate"
+  },
+  {
+    "id": 8,
+    "email": "salesman2@example.com",
+    "password": "password8",
+    "role": "salesman",
+    "department": "Sales",
+    "position": "Sales Associate"
+  },
+  {
+    "id": 9,
+    "email": "sales@example.com",
+    "password": "sales",
+    "role": "sales",
+    "department": "Sales",
+    "position": "Sales Rep"
+  },
+  {
+    "id": 10,
+    "email": "js1@js.com",
+    "password": "12345678",
+    "role": "HR",
+    "department": "HR",
+    "position": null,
+    "name": "js1"
+  },
+  {
+    "id": 11,
+    "email": "js@js.com",
+    "password": "$2b$10$gEHEtku0QAM3OfYigbnqpua88O8P9g3u5Kkhexgp52QVrbV0BUqCS",
+    "role": "jobseeker",
+    "department": null,
+    "position": null,
+    "name": "Js2"
+  },
+  {
+    "id": 12,
+    "email": "js3@js.com",
+    "password": "$2b$10$5hnL0xdtiOA51i9Q1IMVvu1Fey6g.K7X7isfdBJFHVeeU8N0EiJA2",
+    "role": "jobseeker",
+    "department": null,
+    "position": null,
+    "name": "js3"
+  },
+  {
+    "id": 13,
+    "email": "hr@example.com",
+    "password": "$2b$10$kxJMr/py0BJJnzSBB9H/jOXb3a/sf6w/OyIzvzbZBO8GXv8MFP0tS",
+    "role": "hr",
+    "department": "HR",
+    "position": "HR Specialist",
+    "name": "HR Manager"
+  },
+  {
+    "id": 14,
+    "email": "alice.lee@example.com",
+    "password": "changeme",
+    "role": "Sales",
+    "department": "Sales",
+    "position": null
+  },
+  {
+    "id": 15,
+    "email": "carol.wong@example.com",
+    "password": "$2b$10$qQK6SNBJD39GJgrzHN47DewDVTkp8IM4Ium8PdGYTMzzfHklmPXuy",
+    "role": "HR",
+    "department": "HR",
+    "position": null,
+    "name": "Carol Wong"
+  }
+]

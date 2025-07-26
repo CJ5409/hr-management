@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "title": "sales",
+    "description": "aa",
+    "requirements": [
+      "Bachelor degree",
+      "2 year experience"
+    ],
+    "location": "Tsim Sha Tsui",
+    "department": "Sales",
+    "createdAt": "2025-07-18T20:41:42.938Z"
+  },
+  {
+    "id": 2,
+    "title": "hr assistant",
+    "description": "aa",
+    "requirements": [
+      "Bachelor degree",
+      "2 year experience"
+    ],
+    "location": "Tsim Sha Tsui",
+    "department": "HR",
+    "createdAt": "2025-07-18T20:42:08.562Z"
+  }
+]
